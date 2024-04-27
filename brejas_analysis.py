@@ -1,4 +1,5 @@
 import pandas as pd
+from datetime import datetime
 
 # Function to read data directly into a DataFrame
 def read_data(file):
@@ -44,6 +45,11 @@ def generate_descriptive_statistics(df, file_to_save):
     statistics.to_csv(file_to_save)
     return statistics
 
+def preprocess_columns(df):
+    df['year'] = pd.to_datetime(df['review_datetime']).dt.year
+    return df
+
+                       
 # Main function
 def main():
     pd.set_option('display.max_rows', None)
@@ -52,6 +58,7 @@ def main():
     file = f'{data_folder}/joined_data.csv'
     
     df = read_data(file)
+    df = preprocess_columns(df)
 
     df_tmp = select_complete_rows(df)
     file_complete = f'{data_folder}/complete.csv'
@@ -66,6 +73,10 @@ def main():
     
     file_wcomments_stats = f'{data_folder}/wcommnets_stats.csv'
     _ = generate_descriptive_statistics(df_tmp, file_wcomments_stats)
+    
+    
+    df_distinct_styles_year = df.groupby(['beer_style', 'year']).nunique()
+    df_distinct_styles_year.to_csv(f'{data_folder}/disitinct_styles_year.csv')
     
 
 if __name__ == "__main__":
