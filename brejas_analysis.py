@@ -1,6 +1,7 @@
 import pandas as pd
 from datetime import datetime
 
+
 # Function to read data directly into a DataFrame
 def read_data(file):
     dtype_options = {
@@ -29,23 +30,29 @@ def read_data(file):
     df = pd.read_csv(file, sep=',', encoding='utf-8', dtype=dtype_options)
     return df
 
+
 # Function to select rows where all columns contain data
 def select_complete_rows(df):
     complete_rows = df.dropna()
     return complete_rows
 
+
 # Function to select rows where the "review_comment" column is not empty
 def select_rows_with_comment(df):
+    print('selecting rows with comment')
     rows_with_comment = df[df['review_comment'].notna()]
     return rows_with_comment
 
+
 # Function to generate descriptive statistics for non-empty columns
 def generate_descriptive_statistics(df, file_to_save):
+    print('generating descriptive statistics')
     statistics = df.describe(include='all')
     statistics.to_csv(file_to_save)
-    return statistics
+
 
 def preprocess_columns(df):
+    print('preprocessing columns')
     df['review_datetime'] = pd.to_datetime(df['review_datetime'])
     df['beer_alcohol'] = df['beer_alcohol'].str.replace('% ABV', '').astype(float)
     df['beer_srm'] = df['beer_srm'].str.replace('.', '').str.replace(',', '.').astype(float)
@@ -53,6 +60,7 @@ def preprocess_columns(df):
         df[field] = df[field].apply(eval).astype(float)
         df[field] = df[field] * 5
     return df
+
 
 def sanitize_column(df, column_name, min_val, max_val):
     invalid_data = df[(df[column_name] > max_val) | (df[column_name] < min_val)]
@@ -62,8 +70,10 @@ def sanitize_column(df, column_name, min_val, max_val):
 
 
 def sanitize_data(df):
-        
+    print('Sanitizing data')
+    df = sanitize_column(df, 'beer_alcohol', 0, 100)    
     df = sanitize_column(df, 'beer_srm', 0, 80)    
+    df = sanitize_column(df, 'beer_ibu', 0, 120)    
             
     return df
 
@@ -76,22 +86,30 @@ def main():
     file = f'{data_folder}/joined_data.csv'
     
     df = read_data(file)
+    print(f'{len(df)} lines Total')
     df = preprocess_columns(df)
-    print(df.dtypes)
     
-    # TODO CALL after select_rows_with_comment
+    df = select_rows_with_comment(df)
+    print(f'{len(df)} lines Total')
+
     df = sanitize_data(df)
-        
-    return 1
-    df_tmp = select_rows_with_comment(df)
+    print(f'{len(df)} lines Total')
+    
+    df['comment_size'] = df['review_comment'].str.len()
+    
     file_wcomments = f'{data_folder}/wcommnets.csv'
-    df_tmp.to_csv(file_wcomments)
-    
+    df.to_csv(file_wcomments)
+
+        
     file_wcomments_stats = f'{data_folder}/wcommnets_stats.csv'
-    _ = generate_descriptive_statistics(df_tmp, file_wcomments_stats)
+    generate_descriptive_statistics(df, file_wcomments_stats)
     
-    df_distinct_styles_year = df.groupby(['beer_style', df['review_datetime'].dt.year]).nunique()
-    df_distinct_styles_year.to_csv(f'{data_folder}/disitinct_styles_year.csv')
+
+    # df_distinct_styles_year = df.groupby(['beer_style', df['review_datetime'].dt.year]).nunique()
+    # df_distinct_styles_year.to_csv(f'{data_folder}/disitinct_styles_year.csv')
+    df_distinct_styles = df.groupby(['beer_style']).nunique()
+    print(df_distinct_styles)
+    print(len(df_distinct_styles))
     
 
 if __name__ == "__main__":
