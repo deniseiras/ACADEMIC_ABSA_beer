@@ -51,7 +51,7 @@ def generate_descriptive_statistics(df, file_to_save):
     statistics.to_csv(file_to_save)
 
 
-def preprocess_columns(df):
+def ETAPA_2_preprocess_columns(df):
     print('preprocessing columns')
     df['review_datetime'] = pd.to_datetime(df['review_datetime'])
     df['beer_alcohol'] = df['beer_alcohol'].str.replace('% ABV', '').astype(float)
@@ -59,6 +59,14 @@ def preprocess_columns(df):
     for field in ['review_aroma', 'review_visual', 'review_flavor', 'review_sensation', 'review_general_set']:
         df[field] = df[field].apply(eval).astype(float)
         df[field] = df[field] * 5
+        
+    df = select_rows_with_comment(df)
+    print(f'{len(df)} lines Total')
+
+    df = sanitize_data(df)
+    print(f'{len(df)} lines Total')
+    
+    df['comment_size'] = df['review_comment'].str.len()
     return df
 
 
@@ -77,47 +85,50 @@ def sanitize_data(df):
             
     return df
 
+
+def ETAPA_3_1_create_base_for_gen_prompts(df):
+    # df_distinct_styles_year = df.groupby(['beer_style', df['review_datetime'].dt.year]).nunique()
+    # df_distinct_styles_year.to_csv(f'{data_folder}/disitinct_styles_year.csv')
+    df_distinct_styles = df.groupby(['beer_style']).nunique()
+    print(f'Total distinct styles = {len(df_distinct_styles)}')
+    # print(f'Total beer count per distinct styles\n{df_distinct_styles[["beer_name"]]}')
+    
+    # From here, df_distinct_styles was mapped manually to the BJCP categories in file style_count_category.csv
+    dtype_options = {
+        'style': str,
+        'beer_count': int,
+        'bjcp_category': str
+    }
+    
+    df_styles = pd.read_csv('style_count_category.csv', sep=',', encoding='utf-8', dtype=dtype_options)
+    print(df_styles)
+    
+    # TODO Check ETAPA 3.1 
+                   
                        
 # Main function
 def main():
     pd.set_option('display.max_rows', None)
     pd.set_option('display.max_columns', None)
     data_folder = '/media/denis/dados/_COM_BACKUP/MBA'
+
     file = f'{data_folder}/joined_data.csv'
     
     df = read_data(file)
     print(f'{len(df)} lines Total')
-    df = preprocess_columns(df)
     
-    df = select_rows_with_comment(df)
-    print(f'{len(df)} lines Total')
-
-    df = sanitize_data(df)
-    print(f'{len(df)} lines Total')
-    
-    df['comment_size'] = df['review_comment'].str.len()
-    
+    df = ETAPA_2_preprocess_columns(df)
     file_wcomments = f'{data_folder}/wcommnets.csv'
     df.to_csv(file_wcomments)
 
-        
     file_wcomments_stats = f'{data_folder}/wcommnets_stats.csv'
     generate_descriptive_statistics(df, file_wcomments_stats)
     
+    ETAPA_3_1_create_base_for_gen_prompts(df)
+    
 
-    # df_distinct_styles_year = df.groupby(['beer_style', df['review_datetime'].dt.year]).nunique()
-    # df_distinct_styles_year.to_csv(f'{data_folder}/disitinct_styles_year.csv')
-    df_distinct_styles = df.groupby(['beer_style']).nunique()
-    print(df_distinct_styles)
-    print(len(df_distinct_styles))
+  
     
 
 if __name__ == "__main__":
     main()
-
-
-    # # df_tmp = select_complete_rows(df)
-    # # file_complete = f'{data_folder}/complete.csv'
-    # # df_tmp.to_csv(file_complete)
-    # file_complete_stats = f'{data_folder}/complete_stats.csv'
-    # _ = generate_descriptive_statistics(df_tmp, file_complete_stats)
