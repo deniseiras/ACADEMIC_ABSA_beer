@@ -1,5 +1,13 @@
-import pandas as pd
+"""
+- Step 2: Data preprocessing
 
+:author: Denis Eiras
+
+Functions:
+    - 
+"""
+
+import pandas as pd
 
 def remove_invalid_comments(df):
     """Remove invalid comments using AI

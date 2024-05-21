@@ -1,3 +1,12 @@
+"""
+Step 3: Aspect-Based Sentiment Analysis of Beer Characteristics (CC)
+
+:author: Denis Eiras
+
+Functions:
+    - 
+"""
+
 def run(df):
     """Create Prompt base
 

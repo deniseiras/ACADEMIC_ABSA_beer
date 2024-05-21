@@ -1,7 +1,19 @@
+"""
+Main module for executing tasks of methodology
+
+:author: Denis Eiras
+
+Functions:
+    - read_data: Read data from file
+    - select_complete_rows: Select complete rows
+    - generate_descriptive_statistics: Generate statistics
+
+"""
+
 import pandas as pd
 from datetime import datetime
-from etapa_2 import run as run_etapa_2
-from etapa_3 import run as run_etapa_3
+from step_2 import run as run_etapa_2
+from step_3 import run as run_etapa_3
 
 
 def read_data(file):
