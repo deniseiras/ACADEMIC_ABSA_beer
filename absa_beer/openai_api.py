@@ -45,7 +45,7 @@ def main():
     
     # read openai.api_key from openai.env file
 
-    dotenv.load_dotenv('./openai.env')
+    dotenv.load_dotenv('./.env')
     openai.api_key = os.getenv('OPENAI_API_KEY')
     
     # set the prompt

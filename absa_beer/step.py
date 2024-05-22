@@ -1,0 +1,78 @@
+import os
+import dotenv
+import pandas as pd
+
+class Step:
+
+    @staticmethod
+    def read_csv(filename, dtype_options=None):
+        df = pd.read_csv(filename, sep=',', encoding='utf-8', dtype=dtype_options)
+        return df
+
+    @staticmethod
+    def read_data(filename):
+        """Reads the raw data into a DataFrame
+
+        Args:
+            file (string): file name to read from
+
+        Returns:
+            pandas.DataFrame: output DataFrame
+        """
+        
+        dtype_options = {
+        'beer_name': str,
+        'beer_brewery_name': str,
+        'beer_brewery_url': str,
+        'beer_style': str,
+        'beer_alcohol': str,
+        'beer_is_active': str,
+        'beer_is_sazonal': str,
+        'beer_srm': str,  # uses coma separated
+        'beer_ibu': float,  # uses decimal point
+        'beer_ingredients': str,
+        'review_user': str,
+        'review_num_reviews': int,
+        'review_datetime': str,
+        'review_general_rate': float,  # uses decimal point
+        'review_aroma': str,
+        'review_visual': str,
+        'review_flavor': str,
+        'review_sensation': str,
+        'review_general_set': str,
+        'review_comment': str
+        }
+
+        df = Step.read_csv(filename, dtype_options=dtype_options)
+        return df
+
+
+    def generate_descriptive_statistics(self, file_to_save):
+        """Generate descriptive statistics for non-empty columns
+
+        Args:
+            df (pandas.DataFrame): input dataframe
+            file_to_save (string): file name to save to
+        
+        Returns:
+            pandas.DataFrame: output dataframe
+        """    
+        
+        print('generating descriptive statistics')
+        statistics = self.df.describe(include='all')
+        file_path = os.path.join(self.work_dir, file_to_save)
+        statistics.to_csv(file_path)
+
+
+    def __init__(self) -> None:
+        pd.set_option('display.max_rows', None)
+        pd.set_option('display.max_columns', None)
+    
+        dotenv.load_dotenv('./.env')
+        
+        self.work_dir = os.getenv('WORK_DIR')
+        self.df = None
+        
+
+    def run(self):
+        pass

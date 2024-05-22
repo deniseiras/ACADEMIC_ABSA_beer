@@ -15,3 +15,10 @@ Methods:
 - Results generation
 
 TODO: update after text release
+
+### Running
+
+Each step has its own processing function called "run", which generates a base called "step_<number>.csv". The following steps uses the bases of the previous step.
+
+python absa_beer.py 
+
