@@ -1,8 +1,6 @@
-# brejas_analysis
+# Aspect Based Sentiment Analysis for identifying preferred characteristics of Brazilian beers
 
-This repository contains the methodology tasks of the paper:
-
-"Aspect Based Sentiment Analysis for identifying preferred characteristics of Brazilian beers"
+This repository contains the methodology tasks of the paper.
 
 Methods:
 
@@ -16,9 +14,18 @@ Methods:
 
 TODO: update after text release
 
+### Installing
+
+~~~
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+~~~
+
 ### Running
 
 Each step has its own processing function called "run", which generates a base called "step_<number>.csv". The following steps uses the bases of the previous step.
 
+~~~
 python absa_beer.py 
-
+~~~
