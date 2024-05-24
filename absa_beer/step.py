@@ -4,13 +4,10 @@ import pandas as pd
 
 class Step:
 
-    @staticmethod
-    def read_csv(filename, dtype_options=None):
-        df = pd.read_csv(filename, sep=',', encoding='utf-8', dtype=dtype_options)
-        return df
+    def read_csv(self, filename, dtype_options=None):
+        self.df = pd.read_csv(filename, sep=',', encoding='utf-8', dtype=dtype_options)
 
-    @staticmethod
-    def read_data(filename):
+    def read_data(self, filename):
         """Reads the raw data into a DataFrame
 
         Args:
@@ -43,11 +40,10 @@ class Step:
         'review_comment': str
         }
 
-        df = Step.read_csv(filename, dtype_options=dtype_options)
-        return df
+        self.df = Step.read_csv(filename, dtype_options=dtype_options)
 
 
-    def generate_descriptive_statistics(self, file_to_save):
+    def generate_descriptive_statistics(self, file_to_save=None):
         """Generate descriptive statistics for non-empty columns
 
         Args:
@@ -60,8 +56,11 @@ class Step:
         
         print('generating descriptive statistics')
         statistics = self.df.describe(include='all')
-        file_path = os.path.join(self.work_dir, file_to_save)
-        statistics.to_csv(file_path)
+        if file_to_save is None:
+            print(statistics)
+        else:
+            file_path = os.path.join(self.work_dir, file_to_save)
+            statistics.to_csv(file_path)
 
 
     def __init__(self) -> None:

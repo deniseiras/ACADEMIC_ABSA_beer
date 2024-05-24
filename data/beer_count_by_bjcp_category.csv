@@ -1,0 +1,97 @@
+Style,beer_count,bjcp_category
+Japanese Rice Lager,1,-1
+Lambic - Straight,1,-1
+Steam Beer,1,-1
+Outros Hidromel / Mead,2,-1
+Standard Bitter,4,-1
+Malt Liquor,5,-1
+Mild Ale,8,-1
+Specialty Cider and Perry,8,-1
+Dortmunder Export,14,-1
+Special/Premium Bitter,14,-1
+Belgian Specialty Ale,15,-1
+Malzbier,24,-1
+Sem álcool,27,-1
+Imperial / Strong Porter,34,-1
+Pumpkin Ale,44,-1
+Oktoberfest/Marzen,60,-1
+Dry Stout,102,-1
+India Pale Lager,114,-1
+Catharina Sour,168,-1
+Premium American Lager,448,-1
+Classic American Pilsner,24,1
+Cream Ale,33,1
+Lite American Lager,38,1
+American Wheat/Rye,98,1
+Standard American Lager,231,1
+Dark American Lager,41,2
+Amber Lager,72,2
+Maibock/Helles Bock,16,4
+Munich Helles,71,4
+Kölsch,56,5
+Bohemian Pilsener,130,5
+Extra Special Bitter/English Pale Ale,132,5
+German Pilsner,177,5
+Rauchbier,62,6
+Altbier,34,7
+Vienna Lager,107,7
+Schwarzbier,44,8
+Munich Dunkel,55,8
+Eisbock,2,9
+Traditional Bock,54,9
+Doppelbock,67,9
+German Kristallweizen,5,10
+German Dunkelweizen,18,10
+German Weizenbock,46,10
+German Weizen,395,10
+English Brown Ale,24,13
+Porter,173,13
+Scottish,29,14
+Irish Red Ale,175,15
+Foreign Extra Stout,14,16
+Sweet Stout,49,16
+Oatmeal Stout,87,16
+Old Ale,21,17
+Barley Wine,131,17
+Blond Ale,102,18
+American Pale Ale,471,18
+California Common,9,19
+American Brown Ale,80,19
+American Amber Ale,90,19
+American Stout,49,20
+Russian Imperial Stout,587,20
+New England IPA,9,21
+Belgian IPA,21,21
+Black IPA,90,21
+Session IPA,249,21
+American IPA,930,21
+India Pale Ale (IPA,629,22
+Imperial / Double IPA,700,22
+Lambic - Faro,1,23
+Lambic - Gueuze,4,23
+Flanders Brown Ale/Oud Bruin,7,23
+Lambic - Fruit,9,23
+Flanders Red Ale,13,23
+Grodziskie/Gose/Lichtenhainer,74,23
+Berliner Weisse,91,23
+German Roggenbier,6,24
+Biere de Garde,8,24
+Bière de Champagne / Bière Brut,13,24
+Belgian Pale Ale,56,24
+Belgian Blond Ale,140,24
+Saison / Farmhouse,207,24
+Witbier,255,24
+Strong Scotch Ale,32,25
+Belgian Golden Strong Ale,88,25
+Belgian Quadrupel / ABT,20,26
+Belgian Dubbel,57,26
+Belgian Dark Strong Ale,67,26
+Belgian Tripel,95,26
+Keller/Zwickel,6,27
+American Wild Ale,103,28
+Fruit Beer,217,29
+Christmas/Winter Specialty Spiced Beer,9,30
+Spice/Herb/Vegetable Beer,33,30
+Wood Aged Beer,312,33
+Specialty Beer,164,34
+Other Smoked Beer,25,72

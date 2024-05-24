@@ -18,12 +18,14 @@ from step_3 import Step_3
 # Main function
 def main():
 
-    step_1 = Step_1()
-    # testing 2 pages and 2 reviews
-    step_1.max_beer_page = 2
-    step_1.max_page_reviews = 2
-    step_1.run()
-    
+    run_step_1 = False
+    if run_step_1:
+        step_1 = Step_1()
+        # testing 2 pages and 2 reviews
+        step_1.max_beer_page = 2
+        step_1.max_page_reviews = 2
+        step_1.run()
+        
     step_2 = Step_2()
     step_2.run()
     step_2.generate_descriptive_statistics('step_2_stats.csv')
