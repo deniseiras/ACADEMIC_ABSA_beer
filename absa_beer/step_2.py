@@ -111,5 +111,8 @@ class Step_2(Step):
         self.sanitize_data()
         print(f"{len(self.df)} lines Total")
 
+        # create the col review_comment_size
+        self.df["review_comment_size"] = self.df["review_comment"].str.len()
+        
         # generate the base
         self.df.to_csv(f'{self.work_dir}/step_2.csv', index=False)
