@@ -112,4 +112,4 @@ class Step_2(Step):
         print(f"{len(self.df)} lines Total")
 
         # generate the base
-        self.df.to_csv(f'{self.work_dir}/step_2.csv')
+        self.df.to_csv(f'{self.work_dir}/step_2.csv', index=False)
