@@ -56,7 +56,7 @@ class Step_3(Step):
         Returns:
             pandas.DataFrame: output dataframe
         """
-
+        print(f'\n\nRunning Step 3\n================================')
         file = f"{self.work_dir}/step_2.csv"
         self.read_csv(file)
         print(f"{len(self.df)} lines Total")

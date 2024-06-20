@@ -225,7 +225,7 @@ class Step_1(Step):
 
     # Main function
     def run(self):
-        print("Starting ...")
+        print(f'\n\nRunning Step 1\n================================')
 
         pais = "brasil"
         root_url = "https://www.brejas.com.br"

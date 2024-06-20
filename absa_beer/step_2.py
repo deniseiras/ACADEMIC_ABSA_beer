@@ -26,7 +26,7 @@ class Step_2(Step):
         Returns:
             pandas.DataFrame: output dataframe
         """
-        print("selecting rows with comment")
+        print("Removing rows without comment")
         self.df = self.df[self.df["review_comment"].notna()]
 
     def sanitize_column(self, column_name, min_val, max_val):
@@ -58,9 +58,9 @@ class Step_2(Step):
         """
 
         print("Sanitizing data")
-        self.df = self.sanitize_column("beer_alcohol", 0, 100)
-        self.df = self.sanitize_column("beer_srm", 0, 80)
-        self.df = self.sanitize_column("beer_ibu", 0, 120)
+        self.sanitize_column("beer_alcohol", 0, 100)
+        self.sanitize_column("beer_srm", 0, 80)
+        self.sanitize_column("beer_ibu", 0, 120)
 
     def run(self):
         """Convert types and transform evaluation values to [1-5] points. Remove invalid data
@@ -72,16 +72,23 @@ class Step_2(Step):
             pandas.DataFrame: the preprocessed pandas DataFrame
         """
 
+        print(f'\n\nRunning Step 2\n================================')
+        
         file = f"{self.work_dir}/step_1.csv"
         self.read_data(file)
         print(f"{len(self.df)} lines Total")
 
+        # Remove duplicates
+        print('Removing duplicates')
+        self.df.drop_duplicates(inplace=True)
+        print(f"{len(self.df)} lines Total")
+        
         # select only rows with comments
         self.select_rows_with_comment()
         print(f"{len(self.df)} lines Total")
 
         # convert types and transform avaliation values to [1-5] points
-        print("preprocessing columns")
+        print("Preprocessing columns")
         self.df["review_datetime"] = pd.to_datetime(self.df["review_datetime"])
         self.df["beer_alcohol"] = (
             self.df["beer_alcohol"].str.replace("% ABV", "").astype(float)
@@ -100,13 +107,9 @@ class Step_2(Step):
             self.df[field] = self.df[field] * 5
 
         # Remove invalid data based on range values
+        print('Removing invalid data based on range values (ABV, SRM, IBU)')
         self.sanitize_data()
         print(f"{len(self.df)} lines Total")
 
-        # create a column with the size of comments
-        # self.df['comment_size'] = self.df['review_comment'].str.len()
-
-        self.remove_invalid_comments()
-
         # generate the base
-        self.df.to_csv(f"{self.work_dir}/step_2.csv")
+        self.df.to_csv(f'{self.work_dir}/step_2.csv')

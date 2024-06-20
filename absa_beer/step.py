@@ -41,7 +41,7 @@ class Step:
             "review_comment": str,
         }
 
-        self.df = Step.read_csv(filename, dtype_options=dtype_options)
+        self.read_csv(filename, dtype_options=dtype_options)
 
     def generate_descriptive_statistics(self, file_to_save=None):
         """Generate descriptive statistics for non-empty columns
@@ -55,7 +55,9 @@ class Step:
         """
 
         print("generating descriptive statistics")
-        statistics = self.df.describe(include="all")
+        df = self.df[["beer_alcohol", "beer_srm", "beer_ibu", "review_num_reviews", "review_general_rate", 
+                      "review_aroma", "review_visual", "review_flavor", "review_sensation", "review_general_set"]]
+        statistics = df.describe(include="all")
         if file_to_save is None:
             print(statistics)
         else:
