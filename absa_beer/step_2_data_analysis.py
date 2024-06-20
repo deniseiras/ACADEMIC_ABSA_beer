@@ -102,30 +102,48 @@ print(f'\nSazonal beers:\n{unique_sazonal.to_string()}')
 dfh = df
 dfh = dfh[["review_user", "review_num_reviews"]].drop_duplicates()
 dfh = dfh.sort_values(by="review_num_reviews", ascending=False)
+print(f'\nTop 10 users with most reviews:')
+print(dfh[["review_user","review_num_reviews"]].head(10))
+
+# Investigating Jefferson Chicone (duplicate review_num_review) and others with most reviews
+# users = ["Jefferson Chicone"]
+users_list = dfh["review_user"].head(10).to_list()
+user_str = df[df["review_user"].isin(users_list)]
+user_str = user_str.groupby(["review_user", "review_num_reviews"])['review_num_reviews'].count()
+user_str = user_str.sort_values(ascending=False)
+print(f'\nMost review users, review_num_reviews and count of lines:\n{user_str.to_string()}')
+
+print(f'\nUpdating the review_num_reviews of all ... not its okay!')
+df['review_num_reviews'] = df.groupby('review_user')['review_user'].transform('count')
+
+dfh = df
+dfh = dfh[["review_user", "review_num_reviews"]].drop_duplicates()
+dfh = dfh.sort_values(by="review_num_reviews", ascending=False)
+print(f'\nTop 10 users with most reviews:')
+print(dfh[["review_user","review_num_reviews"]].head(10))
+
+# Create histogram
 users_per_bin = 50
 num_bins = len(dfh) // users_per_bin
 bin_labels = []
 sum_reviews = []
-# Loop through each bin and calculate the sum of reviews
-for i in range(num_bins):
-    start_index = i * users_per_bin
-    end_index = (i + 1) * users_per_bin
-    bin_dfh = dfh[start_index:end_index]
-    bin_sum = bin_dfh["review_num_reviews"].sum()
-    bin_labels.append(f'Bin {i+1}')
-    sum_reviews.append(bin_sum)
-# Create the bar graph
-plt.figure(figsize=(10, 10))
-plt.bar(bin_labels, sum_reviews)
-plt.xlabel(f'User Bins (each containing {users_per_bin} users)')
-plt.ylabel('Sum of Reviews')
-plt.title('Sum of Reviews per User Bin')
-plt.xticks(rotation=90)
-plt.tight_layout()
-plt.show()
-print(f'\nTop 20 users with most reviews:')
-print(dfh[["review_user","review_num_reviews"]].head(20))
-
+# # Loop through each bin and calculate the sum of reviews
+# for i in range(num_bins):
+#     start_index = i * users_per_bin
+#     end_index = (i + 1) * users_per_bin
+#     bin_dfh = dfh[start_index:end_index]
+#     bin_sum = bin_dfh["review_num_reviews"].sum()
+#     bin_labels.append(f'Bin {i+1}')
+#     sum_reviews.append(bin_sum)
+# # Create the bar graph
+# plt.figure(figsize=(10, 10))
+# plt.bar(bin_labels, sum_reviews)
+# plt.xlabel(f'User Bins (each containing {users_per_bin} users)')
+# plt.ylabel('Sum of Reviews')
+# plt.title('Sum of Reviews per User Bin')
+# plt.xticks(rotation=90)
+# plt.tight_layout()
+# plt.show()
 
 
 
