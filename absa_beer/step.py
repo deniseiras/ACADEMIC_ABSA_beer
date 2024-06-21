@@ -56,7 +56,7 @@ class Step:
 
         print("generating descriptive statistics")
         df = self.df[["beer_alcohol", "beer_srm", "beer_ibu", "review_num_reviews", "review_general_rate", 
-                      "review_aroma", "review_visual", "review_flavor", "review_sensation", "review_general_set"]]
+                      "review_aroma", "review_visual", "review_flavor", "review_sensation", "review_general_set", "review_comment_size",]]
         statistics = df.describe(include="all")
         if file_to_save is None:
             print(statistics)
