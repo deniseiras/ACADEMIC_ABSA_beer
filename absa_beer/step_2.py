@@ -71,7 +71,8 @@ class Step_2(Step):
         Returns:
             pandas.DataFrame: the preprocessed pandas DataFrame
         """
-
+        percentiles = [0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.90, 0.95, 0.99]
+        
         print(f'\n\nRunning Step 2\n================================')
         
         file = f"{self.work_dir}/step_1.csv"
@@ -173,7 +174,7 @@ class Step_2(Step):
         # General information about the data set
         #
         print('\nStatistics')
-        print(self.df.describe())
+        print(self.df.describe(percentiles))
         print(f'\nNumber of users: {len(self.df["review_user"].unique())}')
         print(f'Number of reviews: {len(self.df)}')
         print(f'Number of beers: {len(self.df["beer_name"].unique())}')
@@ -184,13 +185,15 @@ class Step_2(Step):
         print(f'\nTop Brewery beers produced:\n{unique_beer_count.head(20).to_string()}')
 
         unique_beer_count = self.df.groupby('beer_brewery_name')['beer_style'].nunique().sort_values(ascending=False)
-        print(f'\nTop Brewery styles produced:\n{unique_beer_count.head(20).to_string()}')
+        print(f'\nTop Brewery styles produced:\n{unique_beer_count.to_string()}')
 
         beer_count = self.df.groupby('beer_name')['beer_name'].count().sort_values(ascending=False)
-        print(f'\nTop reviwed beers:\n{beer_count.head(10).to_string()}')
+        print(f'\nTop reviwed beers:\n{beer_count.head(100).to_string()}')
+        print(beer_count.describe(percentiles))
 
-        beer_count = self.df.groupby('beer_style')['beer_style'].count().sort_values(ascending=False)
-        print(f'\nTop reviwed styles:\n{beer_count.head(10).to_string()}')
+        style_count = self.df.groupby('beer_style')['beer_style'].count().sort_values(ascending=False)
+        print(f'\nTop reviwed styles:\n{style_count.head(10).to_string()}')
+        print(style_count.describe(percentiles))
 
         unique_active = self.df.groupby('beer_is_active')['beer_is_active'].count().sort_values(ascending=False)
         print(f'\nActive beers:\n{unique_active.to_string()}')
@@ -218,7 +221,7 @@ class Step_2(Step):
         dfh = dfh.sort_values(by="review_num_reviews", ascending=False)
         print(f'\nTop 10 users with most reviews:')
         print(dfh[["review_user","review_num_reviews"]].head(10))
-
+        print(dfh.describe(percentiles))
         # Create histogram
         users_per_bin = 50
         num_bins = len(dfh) // users_per_bin
