@@ -154,7 +154,7 @@ class Step_2(Step):
         print(f'Removing comments with less than 4 characters: {len(garbage)}')
         garbage.to_csv(f'{self.work_dir}/step_2__DUPLICATES__review_comment__less_than_4_characters.csv', index=False)
         # show distinct review_comment of garbage variable
-        print(garbage["review_comment"].unique())
+        print(garbage['review_comment'].unique())
         self.df.drop(garbage.index, inplace=True)
         print(f"Still {len(self.df)} lines")
 
@@ -192,7 +192,7 @@ class Step_2(Step):
         print(beer_count.describe(percentiles))
 
         style_count = self.df.groupby('beer_style')['beer_style'].count().sort_values(ascending=False)
-        print(f'\nTop reviwed styles:\n{style_count.head(10).to_string()}')
+        print(f'\nTop reviwed styles:\n{style_count.head(200).to_string()}')
         print(style_count.describe(percentiles))
 
         unique_active = self.df.groupby('beer_is_active')['beer_is_active'].count().sort_values(ascending=False)
@@ -204,23 +204,23 @@ class Step_2(Step):
         # Analisys of number of reviews per user
         #
         dfh = self.df
-        dfh = dfh[["review_user", "review_num_reviews"]].drop_duplicates()
-        dfh = dfh.sort_values(by="review_num_reviews", ascending=False)
+        dfh = dfh[['review_user', 'review_num_reviews']].drop_duplicates()
+        dfh = dfh.sort_values(by='review_num_reviews', ascending=False)
         # Investigating Jefferson Chicone (duplicate review_num_review) and others with most reviews
         # users = ["Jefferson Chicone"]
-        users_list = dfh["review_user"].head(10).to_list()
-        user_str = self.df[self.df["review_user"].isin(users_list)]
-        user_str = user_str.groupby(["review_user", "review_num_reviews"])['review_num_reviews'].count()
+        users_list = dfh['review_user'].head(10).to_list()
+        user_str = self.df[self.df['review_user'].isin(users_list)]
+        user_str = user_str.groupby(['review_user', 'review_num_reviews'])['review_num_reviews'].count()
         user_str = user_str.sort_values(ascending=False)
         print(f'\nMost review users, review_num_reviews and count of lines:\n{user_str.to_string()}')
         print(f'\nUpdating the review_num_reviews of all ... now its okay!')
         self.df['review_num_reviews'] = self.df.groupby('review_user')['review_user'].transform('count')
 
         dfh = self.df
-        dfh = dfh[["review_user", "review_num_reviews"]].drop_duplicates()
-        dfh = dfh.sort_values(by="review_num_reviews", ascending=False)
+        dfh = dfh[['review_user', 'review_num_reviews']].drop_duplicates()
+        dfh = dfh.sort_values(by='review_num_reviews', ascending=False)
         print(f'\nTop 10 users with most reviews:')
-        print(dfh[["review_user","review_num_reviews"]].head(10))
+        print(dfh[['review_user','review_num_reviews']].head(10))
         print(dfh.describe(percentiles))
         # Create histogram
         users_per_bin = 50
@@ -232,7 +232,7 @@ class Step_2(Step):
             start_index = i * users_per_bin
             end_index = (i + 1) * users_per_bin
             bin_dfh = dfh[start_index:end_index]
-            bin_sum = bin_dfh["review_num_reviews"].sum()
+            bin_sum = bin_dfh['review_num_reviews'].sum()
             bin_labels.append(f'Bin {i+1}')
             sum_reviews.append(bin_sum)
         # Create the bar graph
