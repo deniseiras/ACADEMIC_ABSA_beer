@@ -17,9 +17,27 @@ TODO: update after text release
 ### Installing
 
 ~~~
-python3 -m venv .venv
+python3.11 -m venv .venv
 source .venv/bin/activate
+pip install --upgrade pip
 pip install -r requirements.txt
+~~~
+
+Now, clone PORTFOLIO_py_openai_api and use it
+~~~
+git clone https://github.com/deniseiras/PORTFOLIO_py_openai_api.git
+pip install -r ../PORTFOLIO_py_openai_api/requirements.txt
+~~~
+
+Configure the paths:
+~~~
+export PYTHONPATH=./:../PORTFOLIO_py_openai_api/
+~~~
+
+Create a file named '.env' in ../PORTFOLIO_py_openai_api/ setting the you OPENAI_API_KEY license. i.e.:
+
+~~~bash
+OPENAI_API_KEY=sk-........................
 ~~~
 
 ### Running

@@ -2,5 +2,4 @@ requests
 bs4
 pandas
 selenium
-openai
-python-dotenv
+matplotlib
