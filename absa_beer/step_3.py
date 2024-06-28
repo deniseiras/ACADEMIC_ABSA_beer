@@ -54,8 +54,8 @@ pelo menos uma característica de uma cerveja. Você não faz comentários não 
 
         # reviews_max_evaluations = len(self.df)/100
         reviews_max_evaluations = 654
-        reviews_per_request = 10  # api is limiting to 10 reviews per request, even when the token limit is not reached
-        review_eval_count = 0
+        reviews_per_request = 5  # api is limiting to 10 reviews per request, even when the token limit is not reached
+        review_eval_count = 1
         # df_reviews_eval = pd.DataFrame(columns=self.df.columns)
         reviews_comments = ''
         chars_to_remove = "[]\""  # to not affect the prompt below
@@ -68,7 +68,7 @@ Sua resposta será no formato JSON. O formato de cada linha do JSON é { "index"
 registra o indice da avaliação, "selected" indica se a avaliação foi selecionada ("YES" ou "NO"), "review_comment" o texto avaliado \
 e "reason" indica o motivo pelo qual a avaliação foi ou não selecionada.
 """
-        for i_general in range(0, reviews_max_evaluations+1):
+        for i_general in range(0, reviews_max_evaluations):
             line = self.df.iloc[i_general]
             
             comm = line[['review_comment']].values[0]
@@ -76,7 +76,8 @@ e "reason" indica o motivo pelo qual a avaliação foi ou não selecionada.
             comm = comm.translate(translation_table)
             reviews_comments += f'\n["{i_general}", "{comm}"]'
             
-            if review_eval_count == reviews_per_request or i_general == reviews_max_evaluations:
+            if review_eval_count == reviews_per_request or i_general == reviews_max_evaluations-1:
+                # TODO - using prompt_sys in second argument makes the output json retunr without "[ ]"
                 response, finish_reason = get_completion(f'{prompt_sys} {prompt_user} {{ {reviews_comments} }}')
                 if finish_reason != 'stop':
                     print(f'Finish reason not expected: {finish_reason}')
@@ -85,7 +86,7 @@ e "reason" indica o motivo pelo qual a avaliação foi ou não selecionada.
                 df_new = pd.DataFrame(response_data)
                 
                 # check if it was processed all data - due to limitations of request sizd
-                if len(df_new) < reviews_per_request and i_general != reviews_max_evaluations:
+                if len(df_new) < reviews_per_request and i_general != reviews_max_evaluations-1:
                     print(f'Error: Not all reviews were processed, expected {reviews_per_request}, got {len(df_new)}')
                     print(f'Last review = {i_general}')
                     exit(-1)
@@ -94,9 +95,6 @@ e "reason" indica o motivo pelo qual a avaliação foi ou não selecionada.
 
                 review_eval_count = 0
                 reviews_comments = ''
-            # else:
-                # df_reviews_eval = pd.concat([df_reviews_eval, pd.DataFrame([line])], ignore_index=True)
-                # print(line[["review_comment"]].values[0] + '\n\n')
         
             review_eval_count += 1
         
