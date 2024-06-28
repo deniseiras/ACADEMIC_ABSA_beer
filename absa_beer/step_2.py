@@ -222,29 +222,33 @@ class Step_2(Step):
         print(f'\nTop 10 users with most reviews:')
         print(dfh[['review_user','review_num_reviews']].head(10))
         print(dfh.describe(percentiles))
-        # Create histogram
-        users_per_bin = 50
-        num_bins = len(dfh) // users_per_bin
-        bin_labels = []
-        sum_reviews = []
-        # Loop through each bin and calculate the sum of reviews
-        for i in range(num_bins):
-            start_index = i * users_per_bin
-            end_index = (i + 1) * users_per_bin
-            bin_dfh = dfh[start_index:end_index]
-            bin_sum = bin_dfh['review_num_reviews'].sum()
-            bin_labels.append(f'Bin {i+1}')
-            sum_reviews.append(bin_sum)
-        # Create the bar graph
-        plt.figure(figsize=(10, 10))
-        plt.bar(bin_labels, sum_reviews)
-        plt.xlabel(f'User Bins (each containing {users_per_bin} users)')
-        plt.ylabel('Sum of Reviews')
-        plt.title('Sum of Reviews per User Bin')
-        plt.xticks(rotation=90)
-        plt.tight_layout()
-        plt.show()
-
+        
         print(f"Step 2 final count: {len(self.df)} lines")                
         # generate the base
         self.df.to_csv(f'{self.work_dir}/step_2.csv', index=False)
+
+
+
+
+        # # Create histogram -
+        # users_per_bin = 50
+        # num_bins = len(dfh) // users_per_bin
+        # bin_labels = []
+        # sum_reviews = []
+        # # Loop through each bin and calculate the sum of reviews
+        # for i in range(num_bins):
+        #     start_index = i * users_per_bin
+        #     end_index = (i + 1) * users_per_bin
+        #     bin_dfh = dfh[start_index:end_index]
+        #     bin_sum = bin_dfh['review_num_reviews'].sum()
+        #     bin_labels.append(f'Bin {i+1}')
+        #     sum_reviews.append(bin_sum)
+        # # Create the bar graph
+        # plt.figure(figsize=(10, 10))
+        # plt.bar(bin_labels, sum_reviews)
+        # plt.xlabel(f'User Bins (each containing {users_per_bin} users)')
+        # plt.ylabel('Sum of Reviews')
+        # plt.title('Sum of Reviews per User Bin')
+        # plt.xticks(rotation=90)
+        # plt.tight_layout()
+        # plt.show()
