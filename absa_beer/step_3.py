@@ -10,6 +10,7 @@ Functions:
 import pandas as pd
 import json
 from step import Step
+import re
 from src.openai_api import get_completion, set_openai_key
 
 class Step_3(Step):
@@ -17,6 +18,14 @@ class Step_3(Step):
     def __init__(self) -> None:
         super().__init__()
 
+
+    def clean_json_string(self, json_string):
+        # Here we use a regex to remove non-printable characters
+        cleaned_string = re.sub(r'[^\x20-\x7E]', '', json_string)
+        translation_table = str.maketrans('', '', "[]\"'`'")
+        cleaned_string = cleaned_string.translate(translation_table)
+        return cleaned_string
+    
     def run(self):
         """Create 'Prompt Base Principal and 'Base Principal' (step_3.csv)
 
@@ -58,7 +67,6 @@ pelo menos uma característica de uma cerveja. Você não faz comentários não 
         review_eval_count = 1
         # df_reviews_eval = pd.DataFrame(columns=self.df.columns)
         reviews_comments = ''
-        chars_to_remove = "[]\""  # to not affect the prompt below
         # df to validate the results 
         df_response = pd.DataFrame(columns=['index', 'selected','review_comment','reason'])
         prompt_user = """
@@ -72,8 +80,7 @@ e "reason" indica o motivo pelo qual a avaliação foi ou não selecionada.
             line = self.df.iloc[i_general]
             
             comm = line[['review_comment']].values[0]
-            translation_table = str.maketrans('', '', chars_to_remove)
-            comm = comm.translate(translation_table)
+            comm = self.clean_json_string(comm)
             reviews_comments += f'\n["{i_general}", "{comm}"]'
             
             if review_eval_count == reviews_per_request or i_general == reviews_max_evaluations-1:
