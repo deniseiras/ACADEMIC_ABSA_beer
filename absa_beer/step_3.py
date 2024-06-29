@@ -20,10 +20,12 @@ class Step_3(Step):
 
 
     def clean_json_string(self, json_string):
-        # Here we use a regex to remove non-printable characters
-        cleaned_string = re.sub(r'[^\x20-\x7E]', '', json_string)
-        translation_table = str.maketrans('', '', "[]\"'`'")
+        cleaned_string = json_string.replace('\t', ' ')
+        translation_table = str.maketrans('', '', "[]\"\'{}")
         cleaned_string = cleaned_string.translate(translation_table)
+        # Here we use a regex to remove non-printable characters
+        # cleaned_string = re.sub(r'[^\x20-\x7E]', '', cleaned_string)
+        
         return cleaned_string
     
     def run(self):
@@ -89,7 +91,11 @@ e "reason" indica o motivo pelo qual a avaliação foi ou não selecionada.
                 if finish_reason != 'stop':
                     print(f'Finish reason not expected: {finish_reason}')
                     exit(-1)
-                response_data = json.loads(response)    
+                try:
+                    response_data = json.loads(response)    
+                except json.decoder.JSONDecodeError:
+                    print(f'Error: decoding JSON. Check:\n {response}')
+                    exit(-1)
                 df_new = pd.DataFrame(response_data)
                 
                 # check if it was processed all data - due to limitations of request sizd
