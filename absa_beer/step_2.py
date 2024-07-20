@@ -71,7 +71,7 @@ class Step_2(Step):
         Returns:
             pandas.DataFrame: the preprocessed pandas DataFrame
         """
-        percentiles = [0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.90, 0.95, 0.99]
+        percentiles = [0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.80, 0.85, 0.90, 0.95, 0.99]
         
         print(f'\n\nRunning Step 2\n================================')
         
