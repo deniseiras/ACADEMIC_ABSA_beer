@@ -6,12 +6,12 @@ Step 3: Aspect-Based Sentiment Analysis of Beer Characteristics (CC)
 Functions:
     - 
 """
+# TODO remove reviews not in portuguese
 
 import pandas as pd
 import json
 from step import Step
-import re
-from src.openai_api import get_completion, set_openai_key
+from src.openai_api import get_completion
 
 class Step_3(Step):
 
@@ -59,8 +59,8 @@ class Step_3(Step):
         
 
                         
-        prompt_sys = """Você é um sistema de seleção de avaliações de cervejas de uma base de avaliações, que seleciona avaliações que citam \
-pelo menos uma característica de uma cerveja. Você não faz comentários não solicitados.
+        prompt_sys = """Você é um sistema de seleção de avaliações de cervejas de uma base de avaliações, que seleciona avaliações na língua \
+portuguesa que citam pelo menos uma característica de cerveja. Você não faz comentários não solicitados.
 """
 
         # reviews_max_evaluations = len(self.df)/100
@@ -72,7 +72,7 @@ pelo menos uma característica de uma cerveja. Você não faz comentários não 
         # df to validate the results 
         df_response = pd.DataFrame(columns=['index', 'selected','review_comment','reason'])
         prompt_user = """
-As avaliações estão na lista compreendida entre colchetes, onde item é por um dicionário, contendo "index", que registra o \
+As avaliações estão na lista compreendida entre colchetes, onde cada item é um dicionário, contendo "index", que registra o \
 índice da avaliação e "review_comment" o texto a ser avaliado.
 Sua resposta será no formato JSON. O formato de cada linha do JSON é { "index", "selected", "review_comment", "reason" }, onde index \
 registra o indice da avaliação, "selected" indica se a avaliação foi selecionada ("YES" ou "NO"), "review_comment" o texto avaliado \
