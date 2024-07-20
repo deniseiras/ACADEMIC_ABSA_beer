@@ -74,7 +74,7 @@ portuguesa que citam pelo menos uma característica de cerveja. Você não faz c
         prompt_user = """
 As avaliações estão na lista compreendida entre colchetes, onde cada item é um dicionário, contendo "index", que registra o \
 índice da avaliação e "review_comment" o texto a ser avaliado.
-Sua resposta será no formato JSON. O formato de cada linha do JSON é { "index", "selected", "review_comment", "reason" }, onde index \
+Sua resposta inicia e termina com colchetes e o formato de cada linha é { "index", "selected", "review_comment", "reason" }, onde index \
 registra o indice da avaliação, "selected" indica se a avaliação foi selecionada ("YES" ou "NO"), "review_comment" o texto avaliado \
 e "reason" indica o motivo pelo qual a avaliação foi ou não selecionada.
 """
@@ -87,7 +87,7 @@ e "reason" indica o motivo pelo qual a avaliação foi ou não selecionada.
             
             if review_eval_count == reviews_per_request or i_general == reviews_max_evaluations-1:
                 # TODO - using prompt_sys in second argument makes the output json retunr without "[ ]"
-                response, finish_reason = get_completion(f'{prompt_sys} {prompt_user} {{ {reviews_comments} }}')
+                response, finish_reason = get_completion(f'{prompt_sys} {prompt_user} {{ {reviews_comments} }}',model='gpt-4o-mini')
                 if finish_reason != 'stop':
                     print(f'Finish reason not expected: {finish_reason}')
                     exit(-1)
