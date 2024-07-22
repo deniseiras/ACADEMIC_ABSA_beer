@@ -9,7 +9,7 @@ Functions:
 # TODO remove reviews not in portuguese
 
 import pandas as pd
-import json
+import ast
 from step import Step
 from src.openai_api import get_completion
 
@@ -56,29 +56,42 @@ class Step_3(Step):
         file = f"{self.work_dir}/step_2.csv"
         self.read_csv(file)
         print(f"{len(self.df)} lines Total")
-        
-
                         
         prompt_sys = """Você é um sistema de seleção de avaliações de cervejas de uma base de avaliações, que seleciona avaliações na língua \
 portuguesa que citam pelo menos uma característica de cerveja. Você não faz comentários não solicitados.
 """
-
-        # reviews_max_evaluations = len(self.df)/100
-        reviews_max_evaluations = 654
+        i_initial_eval_index = 20146  # 0 in from begining, otherwise index of last processed element + 1
+        reviews_max_evaluations = len(self.df)
         reviews_per_request = 5  # api is limiting to 10 reviews per request, even when the token limit is not reached
         review_eval_count = 1
-        # df_reviews_eval = pd.DataFrame(columns=self.df.columns)
         reviews_comments = ''
         # df to validate the results 
-        df_response = pd.DataFrame(columns=['index', 'selected','review_comment','reason'])
-        prompt_user = """
-As avaliações estão na lista compreendida entre colchetes, onde cada item é um dicionário, contendo "index", que registra o \
-índice da avaliação e "review_comment" o texto a ser avaliado.
-Sua resposta inicia e termina com colchetes e o formato de cada linha é { "index", "selected", "review_comment", "reason" }, onde index \
-registra o indice da avaliação, "selected" indica se a avaliação foi selecionada ("YES" ou "NO"), "review_comment" o texto avaliado \
-e "reason" indica o motivo pelo qual a avaliação foi ou não selecionada.
-"""
-        for i_general in range(0, reviews_max_evaluations):
+        include_comment_and_reason = False
+        if include_comment_and_reason:
+            df_response = pd.DataFrame(columns=['index', 'selected','review_comment','reason'])
+            prompt_user = """
+    As avaliações estão na lista compreendida entre colchetes, onde cada item contém "index", que registra o índice da avaliação \
+    e "review_comment" o texto a ser avaliado.  
+    
+    Sua resposta será no formato: [["index", "selected", "review_comment", "reason"]], onde "index" é o indice da avaliação, \
+    "selected" indica se a avaliação foi selecionada ("YES" ou "NO"), "review_comment" o texto avaliado e "reason" indica o \
+    motivo pelo qual a avaliação foi ou não selecionada.        
+    """
+        else:
+            df_response = pd.DataFrame(columns=['index', 'selected'])
+            prompt_user = """
+    As avaliações estão na lista compreendida entre colchetes, onde cada item contém "index", que registra o índice da avaliação e \
+    "review_comment" o texto a ser avaliado. 
+    
+    Sua resposta será no formato [["index", "selected"]], onde "index" é o indice da avaliação e "selected" indica se a avaliação \
+    foi selecionada ("YES" ou "NO").
+    """
+
+            
+        step3_file_name = f'{self.work_dir}/step_3__reviews_selected.csv'
+        df_response.to_csv(step3_file_name, index=False, header=True)
+        
+        for i_general in range(i_initial_eval_index, reviews_max_evaluations):
             line = self.df.iloc[i_general]
             
             comm = line[['review_comment']].values[0]
@@ -92,27 +105,32 @@ e "reason" indica o motivo pelo qual a avaliação foi ou não selecionada.
                     print(f'Finish reason not expected: {finish_reason}')
                     exit(-1)
                 try:
-                    response_data = json.loads(response)    
-                except json.decoder.JSONDecodeError:
-                    print(f'Error: decoding JSON. Check:\n {response}')
-                    exit(-1)
-                df_new = pd.DataFrame(response_data)
+                    data_list = ast.literal_eval(response)
+                    df_new = pd.DataFrame(data_list, columns=["index", "selected"])
+                    df_response = pd.concat([df_response, df_new], ignore_index=True)
+                    # saves sometimes to do not loose work 
+                    df_new.to_csv(step3_file_name, mode='a', index=False, header=False)
                 
-                # check if it was processed all data - due to limitations of request sizd
-                if len(df_new) < reviews_per_request and i_general != reviews_max_evaluations-1:
-                    print(f'Error: Not all reviews were processed, expected {reviews_per_request}, got {len(df_new)}')
-                    print(f'Last review = {i_general}')
-                    exit(-1)
-                    
-                df_response = pd.concat([df_response, df_new], ignore_index=True)
+                except Exception as e:
+                    print(f'\n\nException:{e}')
+                    print(f'\nError creating df: Check:\n {response}')
 
                 review_eval_count = 0
                 reviews_comments = ''
+                # WARNING if it was processed all data - due to limitations of request size
+                # or some data not processed due (empty response)
+                if len(df_new) < reviews_per_request and i_general != reviews_max_evaluations-1:
+                    print(f'WARNING: Not all reviews were processed, expected {reviews_per_request}, got {len(df_new)}')
+                    print(f'Last review = {i_general}')
         
             review_eval_count += 1
         
-        df_response.to_csv(f'{self.work_dir}/step_3__reviews_selected.csv', index=False)
-        # select the values of column "index" from df_reviews_selected where column
+        # finally, sort and save all the results
+        if include_comment_and_reason:
+            df_response = df_response.sort_values(by=['selected', 'reason'])
+        else:
+            df_response = df_response.sort_values(by=['selected'])
+        df_response.to_csv(step3_file_name, index=False)
         
         df_reviews_not_selected = df_response[df_response['selected'] == 'NO']
         self.df = self.df.drop(df_reviews_not_selected['index'].astype(int).tolist())
