@@ -60,8 +60,8 @@ class Step_3(Step):
         prompt_sys = """Você é um sistema de seleção de avaliações de cervejas de uma base de avaliações, que seleciona avaliações na língua \
 portuguesa que citam pelo menos uma característica de cerveja. Você não faz comentários não solicitados.
 """
-        i_initial_eval_index = 20146  # 0 in from begining, otherwise index of last processed element + 1
-        reviews_max_evaluations = len(self.df)
+        i_initial_eval_index = 0  # 0 in from begining, otherwise index of last processed element + 1
+        i_final_eval_index = len(self.df)
         reviews_per_request = 5  # api is limiting to 10 reviews per request, even when the token limit is not reached
         review_eval_count = 1
         reviews_comments = ''
@@ -91,14 +91,14 @@ portuguesa que citam pelo menos uma característica de cerveja. Você não faz c
         step3_file_name = f'{self.work_dir}/step_3__reviews_selected.csv'
         df_response.to_csv(step3_file_name, index=False, header=True)
         
-        for i_general in range(i_initial_eval_index, reviews_max_evaluations):
+        for i_general in range(i_initial_eval_index, i_final_eval_index):
             line = self.df.iloc[i_general]
             
             comm = line[['review_comment']].values[0]
             comm = self.clean_json_string(comm)
             reviews_comments += f'\n["{i_general}", "{comm}"]'
             
-            if review_eval_count == reviews_per_request or i_general == reviews_max_evaluations-1:
+            if review_eval_count == reviews_per_request or i_general == i_final_eval_index-1:
                 # TODO - using prompt_sys in second argument makes the output json retunr without "[ ]"
                 response, finish_reason = get_completion(f'{prompt_sys} {prompt_user} {{ {reviews_comments} }}',model='gpt-4o-mini')
                 if finish_reason != 'stop':
@@ -119,21 +119,21 @@ portuguesa que citam pelo menos uma característica de cerveja. Você não faz c
                 reviews_comments = ''
                 # WARNING if it was processed all data - due to limitations of request size
                 # or some data not processed due (empty response)
-                if len(df_new) < reviews_per_request and i_general != reviews_max_evaluations-1:
+                if len(df_new) < reviews_per_request and i_general != i_final_eval_index-1:
                     print(f'WARNING: Not all reviews were processed, expected {reviews_per_request}, got {len(df_new)}')
                     print(f'Last review = {i_general}')
         
             review_eval_count += 1
         
-        # finally, sort and save all the results
+        # finally, sort to check responses and save all the results
         if include_comment_and_reason:
             df_response = df_response.sort_values(by=['selected', 'reason'])
-        else:
-            df_response = df_response.sort_values(by=['selected'])
+
         df_response.to_csv(step3_file_name, index=False)
-        
         df_reviews_not_selected = df_response[df_response['selected'] == 'NO']
         self.df = self.df.drop(df_reviews_not_selected['index'].astype(int).tolist())
+        
+        # TODO Drop not processed indexes
         self.df.reset_index(drop=True, inplace=True)
         
         self.df.to_csv(f'{self.work_dir}/step_3.csv', index=False)
