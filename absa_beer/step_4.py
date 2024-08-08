@@ -1,5 +1,5 @@
 """
-Step 3: Aspect-Based Sentiment Analysis of Beer Characteristics (CC)
+Step 4: Aspect-Based Sentiment Analysis of Beer Characteristics (CC)
 
 :author: Denis Eiras
 
@@ -9,12 +9,14 @@ Functions:
 
 import pandas as pd
 from step import Step
-from src.openai_api import get_completion, set_openai_key
+from src.openai_api import get_completion
 
 class Step_4(Step):
 
+
     def __init__(self) -> None:
         super().__init__()
+
 
     def run(self):
         """
@@ -27,10 +29,44 @@ class Step_4(Step):
         """
         
         print(f'\n\nRunning Step 4\n================================')
+        
+        self.run_step_4_1_base_prompts()
+        # self.run_step_4_1_
+        # self.run_step_4_2()
+        # self.run_step_4_3()
+        
+        
+    def run_step_4_1_base_prompts(self):
         file = f"{self.work_dir}/step_3.csv"
         self.read_csv(file)
-        print(f"{len(self.df)} lines Total")
         
+        # Base Prompts creation
+        print(f"Step 4.1 initial line count: {len(self.df)}")
+        df = self.df
+        
+        # review_comment size >= 75% of the greatest sizes 
+        greatest_review_comment_size_threshold = df['review_comment_size'].quantile(0.75) 
+        df = df[df['review_comment_size'] >= greatest_review_comment_size_threshold]
+        print(f"Step 4.1 parcial line count (Base Prompts): {len(df)}")
+        
+        # Best and worst reviews
+        df = df[(df['review_general_rate'] >= 4.0) | (df['review_general_rate'] <= 2.0)]
+        print(f"Step 4.1 parcial line count (Base Prompts): {len(df)}")
+        
+        # percentil 1% reviwers with most reviews “review_num_reviews” and inexperient
+        greatest_reviewers_threshold = df['review_num_reviews'].quantile(0.99) 
+        df = df[ (df['review_num_reviews'] >= greatest_reviewers_threshold) | (df['review_num_reviews'] == 1)]
+
+        print(f"Step 4.1 final line count (Base Prompts): {len(df)}")
+        
+        print(df.describe())
+        df.to_csv(f'{self.work_dir}/step_4_1_base_prompts.csv', index=False)
+
+        return df
+
+
+    def run_step_4_1_reviews_for_prompts(self):
+                
         # First, select reviews for Prompt ABSA
         # TODO - create prompt for one shot
         # TODO - choose reviews and create the expected output for one and few shots
@@ -41,9 +77,46 @@ class Step_4(Step):
         reviews_for_prompt = reviews_for_prompt.sort_values(by=['beer_style', 'review_general_rate', 'review_num_reviews'])
         
         # print(f'\nReviews for choose in prompt:\n{reviews_for_prompt.to_string()}')
-        reviews_for_prompt.to_csv(f'{self.work_dir}/step_4__reviews_for_prompt.csv', index=False)
+        reviews_for_prompt.to_csv(f'{self.work_dir}/step_4_1_reviews_for_prompt.csv', index=False)
 
-        
+
+    def run_step_4_1_prompt_zero_shot(self):
+        prompt_sys = """ 
+        "Você é um extrator de aspectos de cerveja. Do texto, extraia os ‘aspectos’ e a ‘categoria’ relacionados aos aspectos da cerveja. As categorias devem estar
+dentre os valores: ‘visual’, ‘aroma’, ‘sabor’, ‘amargor’, ‘álcool’ e ‘sensação na boca’. Extraia o ‘sentimento’ dentre os valores ‘muito negativo’, ‘negativo’, ‘neutro’,
+‘positivo’ ou ‘muito positivo’ para cada par aspecto/categoria. Não faça comentários, apenas gere a saída no formato: [['aspecto', 'categoria', 'sentimento' ]].
+"""
+        return prompt_sys
+
+    def run_step_4_1_prompt_one_shot(self, prompt_zero_shot):
+
+        prompt_one_shot = prompt_zero_shot + """
+        Um exemplo abaixo entre aspas e o resultado esperado em seguida.
+        "Rótulo agradável, em garrafa âmbar bojuda. Tampa sem rótulo, dando um aspecto desleixado à cerveja. As cervejas bastante lupuladas sempre têm uma agradável
+antecipação do aroma logo quando se abre a garrafa. Essa não tinha: mau presságio... Cor âmbar, translúcida,excelente sensação visual ao ser servida, particularmente
+pela intensa formação de espuma, que é persistente. Aroma herbáceo, suave demais,muito aquém para uma cerveja que carrega no lúpulo aromático, inclusive tendo sido 
+feito dry hopping com Cascade, um lúpulo essencialmente aromático . Se a intenção era fazer uma autêntica American IPA, vê-se aqui mais pra uma do velho continente, 
+inglesa, precisamente. No sabor,perde-se completamente: tem um amargor intenso mas adstringente, incomodativo, que parece mesmo arranhar a língua e que perdura no 
+aftertaste.Baixíssima drinkability. Vê-se muito malte, particularmente no aftertaste, quando se mantém um retrogosto de mel e pão. Não vi qualquer off-flavor no exemplar
+que degustei. Pergunto: é uma IPA ou é uma American Pale Ale lupulada em excesso (amargor excessivo, por ser incomodativo...)?"
+[['Cor âmbar', 'visual', 'neutro'],
+ ['translúcida', 'visual', 'neutro'],
+ ['excelente sensação visual', 'visual', 'muito positivo'},
+ ['espuma persistente', 'visual', 'muito positivo'},
+ ['herbáceo suave demais', 'aroma', 'negativo'},
+ ['adstringente', 'amargor', 'negativo'},
+ ['muito malte', 'sabor', 'neutro'},
+ ['retrogosto de mel', 'sabor', 'neutro'},
+ ['retrogosto de pão', 'sabor', 'neutro'},
+ ['sem off-flavor', 'aroma', 'positivo'},
+ ['lupulada em excesso', 'sabor', 'negativo'},
+ ['amargor excessivo', 'amargor', 'negativo'} ]
+"""
+        return prompt_one_shot
+
+    def run_step_4_1_prompt_few_shots(self, prompt_zero_shot):
+            
+                    
         # beer_style review_user review_num_reviews review_general_rate review_comment
         #
         # ***** Wibier
@@ -199,78 +272,48 @@ Sabor que deixou amargo duradouro."""
 gaseificação, cor forte típica das Porters com uma espuma pouco densa de cor caramelo escuro tão característica como o corpo da cerveja, para \
 mim a Colorado Demoiselle é a melhor nacional."""
 
-                        
-#         prompt_sys = """Você é um sistema de seleção de avaliações de cervejas de uma base de avaliações, que seleciona avaliações que citam \
-# pelo menos uma característica (chamada de aspecto) de uma cerveja. Cada aspecto pode estar relacionado a uma categoria ou mais de uma, mas não obrigatoriamente.
-# . As categorias estão entre os valores: "visual", "aroma", "sabor", "sensação na boca".\
-# Você não faz comentários não solicitados.
-# """
+        prompt_few_shots = prompt_zero_shot + "Abaixo, textos de avaliações, onde cada texto está compreendido entre aspas e seu respectivo resultado esperado em seguida."
+        prompt_few_shots += style1_exp_lowrate
+        prompt_few_shots += style1_exp_highrate
+        prompt_few_shots += style1_inexp_lowrate
+        prompt_few_shots += style1_inexp_highrate
+        prompt_few_shots += style2_exp_lowrate
+        prompt_few_shots += style2_exp_highrate
+        prompt_few_shots += style2_inexp_lowrate
+        prompt_few_shots += style2_inexp_highrate
+        prompt_few_shots += style3_exp_lowrate
+        prompt_few_shots += style3_exp_highrate
+        prompt_few_shots += style3_inexp_lowrate
+        prompt_few_shots += style3_inexp_highrate
+        prompt_few_shots += style4_exp_lowrate
+        prompt_few_shots += style4_exp_highrate
+        prompt_few_shots += style4_inexp_lowrate
+        prompt_few_shots += style4_inexp_highrate
 
-        prompt_sys = """ 
-        "Você é um extrator de aspectos de cerveja. Do texto, extraia os ‘aspectos’ e a ‘categoria’ relacionados aos aspectos da cerveja. As categorias devem estar \
-dentre os valores: ‘visual’, ‘aroma’, ‘sabor’, ‘amargor’, ‘álcool’ e ‘sensação na boca’. Extraia o ‘sentimento’ dentre os valores ‘muito negativo’, ‘negativo’, ‘neutro’, \
-‘positivo’ ou ‘muito positivo’ para cada par aspecto/categoria. Não faça comentários, apenas gere a saída no formato: [ {‘CC’: aspecto, ‘categoria’: categoria, \
-‘polaridade’: sentimento }]. Um exemplo abaixo entre aspas e o resultado esperado em JSON.
-        "Cerveja de coloração amarelo claro, líquido semi translúcido e espuma branca de boa formação. Aroma frutado, com as sensações de caju \
-muito fortes e melão um pouco mais leve no segundo plano. Sabor azedo, salgado, com as predominâncias das frutas anunciadas no rótulo, caju e melão. Refrescante, \
-álcool e amargor leves, bem carbonatada, corpo leve e retrogosto frutado. Gostei da combinação entre o salgado e adstringente do caju com o refrescante e levemente \
-doce do melão. Mais uma cerveja de melão para conta!"
-[{"aspecto": "coloração amarelo claro", "categoria": "visual"},
-{"aspecto": "líquido semi translúcido", "categoria": "visual"},
-{"aspecto": "espuma branca de boa formação", "categoria": "visual"},
-{"aspecto": "aroma frutado", "categoria": "aroma"},
-{"aspecto": "caju muito fortes", "categoria": "aroma"},
-{"aspecto": "melão um pouco mais leve", "categoria": "aroma"},
-{"aspecto": "sabor azedo", "categoria": "sabor"},
-{"aspecto": "sabor salgado", "categoria": "sabor"},
-{"aspecto": "refrescante", "categoria": "sensação na boca"},
-{"aspecto": "álcool leve", "categoria": "sabor"},
-{"aspecto": "amargor leve", "categoria": "sabor"},
-{"aspecto": "bem carbonatada", "categoria": "sensação na boca"},
-{"aspecto": "corpo leve", "categoria": "sensação na boca"},
-{"aspecto": "retrogosto frutado", "categoria": "sabor"},
-{"aspecto": "gostei da combinação", "categoria": "sensação na boca"}]
-"""
+        return prompt_few_shots
 
-# Exemplos de avaliações que poderão ser escolhidas, em uma lista compreendida entre ```, onde cada avaliação está entre ''' :"""
-#         prompt_sys += "```"
-#         prompt_sys += " '''" + style1_exp_lowrate + "'''"
-#         prompt_sys += " '''" + style1_exp_highrate + "'''"
-#         prompt_sys += " '''" + style1_inexp_highrate + "'''"
-#         prompt_sys += " '''" + style2_exp_lowrate + "'''"
-#         prompt_sys += " '''" + style2_exp_highrate + "'''"
-#         prompt_sys += " '''" + style2_inexp_highrate + "'''"
-#         prompt_sys += " '''" + style3_exp_lowrate + "'''"
-#         prompt_sys += " '''" + style3_exp_highrate + "'''"
-#         prompt_sys += " '''" + style3_inexp_lowrate + "'''"
-#         prompt_sys += " '''" + style3_inexp_highrate + "'''"
-#         prompt_sys += " '''" + style4_exp_lowrate + "'''"
-#         prompt_sys += " '''" + style4_exp_highrate + "'''"
-#         prompt_sys += " '''" + style4_inexp_lowrate + "'''"
-#         prompt_sys += " '''" + style4_inexp_highrate + "'''"
-        
-#         prompt_sys += ".\nExemplos de avaliações que não poderão ser escolhidas: "
-#         prompt_sys += " '''" + style1_inexp_lowrate + "'''"
-#         prompt_sys += " '''" + style2_inexp_lowrate + "'''"
-#         prompt_sys += "```"
 
-       
-        review_eval_count = 0
-        reviews_eval = []
-        reviews_comments = "[ "
-        prompt_user = """Execute sua tarefa nas avaliações, que estão no formato JSON, onde cada avaliação representa um item."""
-        for i_general in range(0, 21):
-            line = self.df.iloc[i_general]
+    def run_step_4_2(self):
+        # review_eval_count = 0
+        # reviews_eval = []
+        # reviews_comments = "[ "
+        # for i_general in range(0, 21):
+        #     line = self.df.iloc[i_general]
             
-            if review_eval_count == 5:
-                response, finish_reason = get_completion(prompt_user + reviews_comments + " ]", prompt_sys)
-                review_eval_count = 0
-                reviews_eval = []
-                reviews_comments = "[ "
-            else:
-                reviews_eval.append(line)
-                # print(line[["review_comment"]].values[0] + '\n\n')
-                reviews_comments += f"\n {{ {line[['review_comment']].values[0]} }}"
-                review_eval_count += 1
+        #     if review_eval_count == 5:
+        #         response, finish_reason = get_completion(prompt_user + reviews_comments + " ]", prompt_few_shots)
+        #         review_eval_count = 0
+        #         reviews_eval = []
+        #         reviews_comments = "[ "
+        #     else:
+        #         reviews_eval.append(line)
+        #         # print(line[["review_comment"]].values[0] + '\n\n')
+        #         reviews_comments += f"\n {{ {line[['review_comment']].values[0]} }}"
+        #         review_eval_count += 1
             
+        pass
+
+    def run_step_4_3(self):
+        pass
+
             
