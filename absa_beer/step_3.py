@@ -18,16 +18,7 @@ class Step_3(Step):
     def __init__(self) -> None:
         super().__init__()
 
-
-    def clean_json_string(self, json_string):
-        cleaned_string = json_string.replace('\t', ' ')
-        translation_table = str.maketrans('', '', "[]\"{}")
-        cleaned_string = cleaned_string.translate(translation_table)
-        # Here we use a regex to remove non-printable characters
-        # cleaned_string = re.sub(r'[^\x20-\x7E]', '', cleaned_string)
-        
-        return cleaned_string
-    
+   
     def run(self):
         """Create 'Prompt Base Principal and 'Base Principal' (step_3.csv)
 
@@ -131,11 +122,12 @@ portuguesa que citam pelo menos uma característica de cerveja. Você não faz c
 
         df_response.to_csv(step3_file_name, index=False)
         df_reviews_not_selected = df_response[df_response['selected'] == 'NO']
-        self.df = self.df.drop(df_reviews_not_selected['index'].astype(int).tolist())
+        
+        step3_df = self.df.drop(df_reviews_not_selected['index'].astype(int).tolist())
         
         # TODO Drop not processed indexes
-        self.df.reset_index(drop=True, inplace=True)
+        step3_df.reset_index(drop=True, inplace=True)
         
-        self.df.to_csv(f'{self.work_dir}/step_3.csv', index=False)
+        step3_df.to_csv(f'{self.work_dir}/step_3.csv', index=False)
             
 

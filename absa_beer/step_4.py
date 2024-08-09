@@ -8,6 +8,7 @@ Functions:
 """
 
 import pandas as pd
+import ast
 from step import Step
 from src.openai_api import get_completion
 
@@ -20,76 +21,123 @@ class Step_4(Step):
 
     def run(self):
         """
+        This function runs Step 4 of the Aspect-Based Sentiment Analysis of Beer Characteristics.
+        It reads the csv file containing the reviews for the previous step, and then creates the 
+        "Base Prompts" and the prompts for the Aspect-Based Sentiment Analysis of Beer Characteristics.
 
         Args:
-            
+                self (object): The object instance that contains the data.
 
         Returns:
-            
         """
         
         print(f'\n\nRunning Step 4\n================================')
-        
-        self.run_step_4_1_base_prompts()
-        # self.run_step_4_1_
-        # self.run_step_4_2()
-        # self.run_step_4_3()
-        
-        
-    def run_step_4_1_base_prompts(self):
-        file = f"{self.work_dir}/step_3.csv"
+        file = f'{self.work_dir}/step_3.csv'
         self.read_csv(file)
         
+        # reviews for creating one and few shot prompts
+        reviews_for_prompts_df = self.run_step_4_1_reviews_for_prompts()
+        print(reviews_for_prompts_df.describe())
+        
+        # create Base Prompts
+        base_prompts_df = self.run_step_4_1_base_prompts(reviews_for_prompts_df)
+        print(base_prompts_df.describe())
+        
+        # do ABSA in Base Prompts for n shots and models, to select the best combination
+        self.run_step_4_2_ABSA(base_prompts_df)
+        
+    def run_step_4_1_base_prompts(self, reviews_for_prompts_df: pd.DataFrame):
+        """
+        This function selects reviews for Prompt ABSA based on certain criteria.
+        Creates the "Base Prompts" base, for using in prompts one and few shots.
+        Parameters:
+            self (object): The object instance that contains the data.
+        Returns:
+            pandas.DataFrame: A DataFrame containing the selected reviews. The DataFrame is sorted by beer style, 
+            review general rate, and review number of reviews.
+        """            
+       
         # Base Prompts creation
-        print(f"Step 4.1 initial line count: {len(self.df)}")
+        print(f'Step 4.1 - Base Prompts creation')
+        print(f'- Initial line count: {len(self.df)}')
         df = self.df
+
+        # remove registers of df containing reviews_for_prompts_df registers
+        df = df[~df.isin(reviews_for_prompts_df)]
+        print(f'- Removing registers from reviews_for_prompts_df - Parcial line count (Base Prompts): {len(df)}')
         
         # review_comment size >= 75% of the greatest sizes 
         greatest_review_comment_size_threshold = df['review_comment_size'].quantile(0.75) 
         df = df[df['review_comment_size'] >= greatest_review_comment_size_threshold]
-        print(f"Step 4.1 parcial line count (Base Prompts): {len(df)}")
+        print(f'- Select greatest review comment size - Parcial line count (Base Prompts): {len(df)}')
         
         # Best and worst reviews
         df = df[(df['review_general_rate'] >= 4.0) | (df['review_general_rate'] <= 2.0)]
-        print(f"Step 4.1 parcial line count (Base Prompts): {len(df)}")
+        print(f'- Select best and worst reviews - Parcial line count (Base Prompts): {len(df)}')
         
         # percentil 1% reviwers with most reviews “review_num_reviews” and inexperient
         greatest_reviewers_threshold = df['review_num_reviews'].quantile(0.99) 
         df = df[ (df['review_num_reviews'] >= greatest_reviewers_threshold) | (df['review_num_reviews'] == 1)]
+        print(f'- Select experients and inexperients - Parcial line count (Base Prompts): {len(df)}')
 
-        print(f"Step 4.1 final line count (Base Prompts): {len(df)}")
+        # select only one register per review_user column on df
+        df = df.groupby('review_user').head(1)
+        print(f'- Select only one register per review_user - Parcial line count (Base Prompts): {len(df)}')
         
-        print(df.describe())
-        df.to_csv(f'{self.work_dir}/step_4_1_base_prompts.csv', index=False)
-
+        # select only one register per beer_style column on df
+        df = df.groupby('beer_style').head(1)
+        print(f'- Select only one register per beer_style - Parcial line count (Base Prompts): {len(df)}')
+        
+        
+        df = df.sort_values(by=['beer_style', 'review_general_rate', 'review_num_reviews'])
+        print(f'- Final line count (Base Prompts): {len(df)}')
+        
+        df.to_csv(f'{self.work_dir}/step_4_1__base_prompts.csv', index=False)
         return df
 
 
     def run_step_4_1_reviews_for_prompts(self):
-                
-        # First, select reviews for Prompt ABSA
-        # TODO - create prompt for one shot
-        # TODO - choose reviews and create the expected output for one and few shots
+        """
+        This function selects reviews for Prompt ABSA based on certain criteria.
+        Parameters:
+                self (object): The object instance that contains the data.
+
+        Returns:
+                pandas.DataFrame: A DataFrame containing the selected reviews. The DataFrame is sorted by beer style, 
+                review general rate, and review number of reviews.
+        """
+
+        print(f'Step 4.1 - Selections of reviews for Prompts ABSA')
         styles_for_prompt = ['India Pale Ale (IPA)', 'German Weizen', 'Porter', 'Witbier']
-        reviews_for_prompt = self.df[ self.df['beer_style'].isin(styles_for_prompt) & 
+        df = self.df[ self.df['beer_style'].isin(styles_for_prompt) & 
                                      ((self.df['review_general_rate'] >= 4) | (self.df['review_general_rate'] <= 2)) & 
+                                     # TODO check 368
                                      ((self.df['review_num_reviews'] >= 368) | (self.df['review_num_reviews'] == 1))]
-        reviews_for_prompt = reviews_for_prompt.sort_values(by=['beer_style', 'review_general_rate', 'review_num_reviews'])
+        df = df.sort_values(by=['beer_style', 'review_general_rate', 'review_num_reviews'])
         
-        # print(f'\nReviews for choose in prompt:\n{reviews_for_prompt.to_string()}')
-        reviews_for_prompt.to_csv(f'{self.work_dir}/step_4_1_reviews_for_prompt.csv', index=False)
+        df.to_csv(f'{self.work_dir}/step_4_1__reviews_for_prompt.csv')
+        
+        return df
 
 
-    def run_step_4_1_prompt_zero_shot(self):
+    def step_4_1_get_prompt_zero_shot(self):
+            
+        print(f'Step 4.1 - "Prompt ABSA zero-shot" creation')
         prompt_sys = """ 
         "Você é um extrator de aspectos de cerveja. Do texto, extraia os ‘aspectos’ e a ‘categoria’ relacionados aos aspectos da cerveja. As categorias devem estar
 dentre os valores: ‘visual’, ‘aroma’, ‘sabor’, ‘amargor’, ‘álcool’ e ‘sensação na boca’. Extraia o ‘sentimento’ dentre os valores ‘muito negativo’, ‘negativo’, ‘neutro’,
-‘positivo’ ou ‘muito positivo’ para cada par aspecto/categoria. Não faça comentários, apenas gere a saída no formato: [['aspecto', 'categoria', 'sentimento' ]].
+‘positivo’ ou ‘muito positivo’ para cada par aspecto/categoria. 
+ 
+        As avaliações estão na lista compreendida entre colchetes, onde cada item contém "index", que registra o índice da avaliação e \
+    "review_comment" o texto a ser avaliado. 
+
+        Não faça comentários, apenas gere a saída no formato: [['index', 'aspecto', 'categoria', 'sentimento' ]].
 """
         return prompt_sys
 
-    def run_step_4_1_prompt_one_shot(self, prompt_zero_shot):
+    def step_4_1_get_prompt_one_shot(self, prompt_zero_shot: str):
 
+        print(f'Step 4.1 - "Prompt ABSA one-shot" creation')
         prompt_one_shot = prompt_zero_shot + """
         Um exemplo abaixo entre aspas e o resultado esperado em seguida.
         "Rótulo agradável, em garrafa âmbar bojuda. Tampa sem rótulo, dando um aspecto desleixado à cerveja. As cervejas bastante lupuladas sempre têm uma agradável
@@ -114,7 +162,7 @@ que degustei. Pergunto: é uma IPA ou é uma American Pale Ale lupulada em exces
 """
         return prompt_one_shot
 
-    def run_step_4_1_prompt_few_shots(self, prompt_zero_shot):
+    def step_4_1_get_prompt_few_shots(self, prompt_zero_shot: str):
             
                     
         # beer_style review_user review_num_reviews review_general_rate review_comment
@@ -123,6 +171,7 @@ que degustei. Pergunto: é uma IPA ou é uma American Pale Ale lupulada em exces
         #
         # - experienced - low rate
         # Bruno Sicchieri	531	1.1
+        print(f'Step 4.1 - "Prompt ABSA few-shots" creation')
         style1_exp_lowrate = """De coloração amarelada, turva. Espuma de difícil formação, altamente efervescente e sem duração. Bom aroma \
 trazendo notas cítricas de laranja e semente de coentro. Na boca, início e final amargos e efervescentes, quanto ao sabor... horrível... \
 agitei para capturar um pouco do fermento sedimentando no fundo e creio que foi meu erro... é difícil descrever, exceto a sensação de estar \
@@ -293,26 +342,75 @@ mim a Colorado Demoiselle é a melhor nacional."""
         return prompt_few_shots
 
 
-    def run_step_4_2(self):
-        # review_eval_count = 0
-        # reviews_eval = []
-        # reviews_comments = "[ "
-        # for i_general in range(0, 21):
-        #     line = self.df.iloc[i_general]
-            
-        #     if review_eval_count == 5:
-        #         response, finish_reason = get_completion(prompt_user + reviews_comments + " ]", prompt_few_shots)
-        #         review_eval_count = 0
-        #         reviews_eval = []
-        #         reviews_comments = "[ "
-        #     else:
-        #         reviews_eval.append(line)
-        #         # print(line[["review_comment"]].values[0] + '\n\n')
-        #         reviews_comments += f"\n {{ {line[['review_comment']].values[0]} }}"
-        #         review_eval_count += 1
-            
-        pass
+    def run_step_4_2_ABSA(self, base_prompts_df):
 
+        i_initial_eval_index = 0  # 0 in from begining, otherwise index of last processed element + 1
+        i_final_eval_index = len(base_prompts_df)
+        i_final_eval_index = 5
+        reviews_per_request = 5  # api is limiting to 10 reviews per request, even when the token limit is not reached
+        review_eval_count = 1
+        reviews_comments = ''
+        # df to validate the results 
+        response_columns = ['index', 'aspect', 'category', 'sentiment']
+        df_response = pd.DataFrame(columns=response_columns)
+        
+        # for model in ...
+        model = 'gpt-4o-mini'    
+        
+        # for prompt_type in [ ''zero_shot', 'one_shot', 'few_shots']
+        prompt_type = 'zero_shot'
+        prompt_zero_shot = self.step_4_1_get_prompt_zero_shot()
+        if prompt_type == 'zero_shot':
+            prompt_n_shot = prompt_zero_shot
+        elif prompt_type == 'one_shot':
+            prompt_n_shot = self.step_4_1_get_prompt_one_shot(prompt_zero_shot)
+        elif prompt_type == 'few_shots':
+            prompt_n_shot = self.step_4_1_get_prompt_few_shots(prompt_zero_shot)
+        
+        print(f'Running {prompt_type} task with {model} model...')
+        
+        n_shot_file_name = f'{self.work_dir}/step_4_1__{prompt_type}_{model}.csv'
+        df_response.to_csv(n_shot_file_name, index=False, header=True)
+        
+        for i_general in range(i_initial_eval_index, i_final_eval_index):
+            line = base_prompts_df.iloc[i_general]
+            
+            comm = line[['review_comment']].values[0]
+            comm = self.clean_json_string(comm)
+            reviews_comments += f'\n["{i_general}", "{comm}"]'
+            
+            if review_eval_count == reviews_per_request or i_general == i_final_eval_index-1:
+                # TODO - using prompt_sys in second argument makes the output json return without "[ ]"
+                response, finish_reason = get_completion(f'{prompt_n_shot} {{ {reviews_comments} }}',model=model)
+                if finish_reason != 'stop':
+                    print(f'Finish reason not expected: {finish_reason}')
+                    exit(-1)
+                try:
+                    data_list = ast.literal_eval(response)
+                    df_new = pd.DataFrame(data_list, columns=response_columns)
+                    df_response = pd.concat([df_response, df_new], ignore_index=True)
+                    # saves sometimes to do not loose work 
+                    df_new.to_csv(n_shot_file_name, mode='a', index=False, header=False)
+                
+                except Exception as e:
+                    print(f'\n\nException:{e}')
+                    print(f'\nError creating df: Check:\n {response}')
+
+                review_eval_count = 0
+                reviews_comments = ''
+                # WARNING if it was processed all data - due to limitations of request size
+                # or some data not processed due (empty response)
+                if len(df_new) < reviews_per_request and i_general != i_final_eval_index-1:
+                    print(f'WARNING: Not all reviews were processed, expected {reviews_per_request}, got {len(df_new)}')
+                    print(f'Last review = {i_general}')
+        
+            review_eval_count += 1
+        
+        # finally, sort to check responses and save all the results
+        df_response = df_response.sort_values(by=['index', 'category', 'aspect'])
+
+        df_response.to_csv(n_shot_file_name, index=False)
+        
     def run_step_4_3(self):
         pass
 
