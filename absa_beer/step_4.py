@@ -10,7 +10,7 @@ Functions:
 import pandas as pd
 import ast
 from step import Step
-from src.openai_api import get_completion
+from Prompt_AI import Prompt_AI
 
 class Step_4(Step):
 
@@ -98,7 +98,8 @@ class Step_4(Step):
 
     def run_step_4_1_reviews_for_prompts(self):
         """
-        This function selects reviews for Prompt ABSA based on certain criteria.
+        This function selects reviews for creating Prompts ABSA based on certain criteria.
+        The 16 reviews are selected manually from this base regarding the constraints
         Parameters:
                 self (object): The object instance that contains the data.
 
@@ -136,6 +137,14 @@ dentre os valores: ‘visual’, ‘aroma’, ‘sabor’, ‘amargor’, ‘ál
         return prompt_sys
 
     def step_4_1_get_prompt_one_shot(self, prompt_zero_shot: str):
+        """
+        This function creates the Prompt ABSA one-shot based on the Prompt ABSA zero-shot.
+        The only review were selected manually from base step_4_1__reviews_for_prompt.csv, considering bad and good aspects
+        Parameters:
+            self (object): The object instance that contains the data.
+            prompt_zero_shot (str): The prompt ABSA zero-shot.
+        """
+
 
         print(f'Step 4.1 - "Prompt ABSA one-shot" creation')
         prompt_one_shot = prompt_zero_shot + """
@@ -147,23 +156,29 @@ feito dry hopping com Cascade, um lúpulo essencialmente aromático . Se a inten
 inglesa, precisamente. No sabor,perde-se completamente: tem um amargor intenso mas adstringente, incomodativo, que parece mesmo arranhar a língua e que perdura no 
 aftertaste.Baixíssima drinkability. Vê-se muito malte, particularmente no aftertaste, quando se mantém um retrogosto de mel e pão. Não vi qualquer off-flavor no exemplar
 que degustei. Pergunto: é uma IPA ou é uma American Pale Ale lupulada em excesso (amargor excessivo, por ser incomodativo...)?"
-[['Cor âmbar', 'visual', 'neutro'],
- ['translúcida', 'visual', 'neutro'],
- ['excelente sensação visual', 'visual', 'muito positivo'},
- ['espuma persistente', 'visual', 'muito positivo'},
- ['herbáceo suave demais', 'aroma', 'negativo'},
- ['adstringente', 'amargor', 'negativo'},
- ['muito malte', 'sabor', 'neutro'},
- ['retrogosto de mel', 'sabor', 'neutro'},
- ['retrogosto de pão', 'sabor', 'neutro'},
- ['sem off-flavor', 'aroma', 'positivo'},
- ['lupulada em excesso', 'sabor', 'negativo'},
- ['amargor excessivo', 'amargor', 'negativo'} ]
+[['0', 'Cor âmbar', 'visual', 'neutro'],
+ ['0', 'translúcida', 'visual', 'neutro'],
+ ['0', 'excelente sensação visual', 'visual', 'muito positivo'},
+ ['0', 'espuma persistente', 'visual', 'muito positivo'},
+ ['0', 'herbáceo suave demais', 'aroma', 'negativo'},
+ ['0', 'adstringente', 'amargor', 'negativo'},
+ ['0', 'muito malte', 'sabor', 'neutro'},
+ ['0', 'retrogosto de mel', 'sabor', 'neutro'},
+ ['0', 'retrogosto de pão', 'sabor', 'neutro'},
+ ['0', 'sem off-flavor', 'aroma', 'positivo'},
+ ['0', 'lupulada em excesso', 'sabor', 'negativo'},
+ ['0', 'amargor excessivo', 'amargor', 'negativo'} ]
 """
         return prompt_one_shot
 
     def step_4_1_get_prompt_few_shots(self, prompt_zero_shot: str):
-            
+        """
+        This function creates the Prompt ABSA few-shots based on the Prompt ABSA zero-shot.
+        The reviews were selected manually from base step_4_1__reviews_for_prompt.csv, considering 
+        the good and bad reviewers for each beer style
+        Parameters:
+            self (object): The object instance that contains the data.
+        """
                     
         # beer_style review_user review_num_reviews review_general_rate review_comment
         #
@@ -345,9 +360,10 @@ mim a Colorado Demoiselle é a melhor nacional."""
     def run_step_4_2_ABSA(self, base_prompts_df):
 
         i_initial_eval_index = 0  # 0 in from begining, otherwise index of last processed element + 1
+        
+        # i_final_eval_index = 1
         i_final_eval_index = len(base_prompts_df)
-        i_final_eval_index = 5
-        reviews_per_request = 5  # api is limiting to 10 reviews per request, even when the token limit is not reached
+        
         review_eval_count = 1
         reviews_comments = ''
         # df to validate the results 
@@ -355,10 +371,18 @@ mim a Colorado Demoiselle é a melhor nacional."""
         df_response = pd.DataFrame(columns=response_columns)
         
         # for model in ...
-        model = 'gpt-4o-mini'    
+        # model = 'gpt-4o-mini'    
+        model = 'sabia-3'
+        
+        if model.startswith('sabia'):
+            # sabia-3 output max tokens response = 512 , so use revies_per_request = 1
+            reviews_per_request = 1  
+        else:
+            # open ai is limiting to 10 reviews per request, even when the token limit is not reached. Using 5
+            reviews_per_request = 5  
         
         # for prompt_type in [ ''zero_shot', 'one_shot', 'few_shots']
-        prompt_type = 'zero_shot'
+        prompt_type = 'one_shot'
         prompt_zero_shot = self.step_4_1_get_prompt_zero_shot()
         if prompt_type == 'zero_shot':
             prompt_n_shot = prompt_zero_shot
@@ -381,11 +405,14 @@ mim a Colorado Demoiselle é a melhor nacional."""
             
             if review_eval_count == reviews_per_request or i_general == i_final_eval_index-1:
                 # TODO - using prompt_sys in second argument makes the output json return without "[ ]"
-                response, finish_reason = get_completion(f'{prompt_n_shot} {{ {reviews_comments} }}',model=model)
+                prompt_ai = Prompt_AI(model, f'{prompt_n_shot} {{ {reviews_comments} }}')
+                response, finish_reason = prompt_ai.get_completion()
                 if finish_reason != 'stop':
                     print(f'Finish reason not expected: {finish_reason}')
                     exit(-1)
                 try:
+                    response = response.replace('```json', '')
+                    response = response.replace('```', '')
                     data_list = ast.literal_eval(response)
                     df_new = pd.DataFrame(data_list, columns=response_columns)
                     df_response = pd.concat([df_response, df_new], ignore_index=True)
