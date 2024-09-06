@@ -31,13 +31,19 @@ pip install -r ../PORTFOLIO_py_openai_api/requirements.txt
 
 Configure the paths:
 ~~~
-export PYTHONPATH=./:../PORTFOLIO_py_openai_api/
+export PYTHONPATH=./:../PORTFOLIO_py_openai_api/:../PORTFOLIO_py_maritaca_api/
 ~~~
 
-Create a file named '.env' in ../PORTFOLIO_py_openai_api/ setting the you OPENAI_API_KEY license. i.e.:
+Create a file named '.env' in ../PORTFOLIO_py_openai_api/ setting your license. i.e.:
 
 ~~~bash
 OPENAI_API_KEY=sk-........................
+~~~
+
+Create a file named '.env' in ../PORTFOLIO_py_maritaca_api/ setting your license. i.e.:
+
+~~~bash
+MARITACAAI_API_KEY=123........................
 ~~~
 
 ### Running
