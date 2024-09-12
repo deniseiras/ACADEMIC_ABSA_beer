@@ -565,72 +565,75 @@ Abaixo, entre aspas, exemplos de textos de avaliações e o resultado esperado. 
         i_final_eval_index = len(base_prompts_df)
         
         
-        # for model in ...
-        model = 'gpt-4o-mini'    
-        # model = 'sabia-3'
-       
-        
-        # nshots = 3
-        for nshots in [1, 3]:
-            
-            prompt_zero = self.step_4_1_get_prompt_zero_shot()
-            if nshots == 0:
-                prompt_n_shot = prompt_zero
-            else:
-                prompt_n_shot = self.step_4_1_get_prompt_few_shots(prompt_zero, nshots)
-            
-            print(f'Running {nshots} shots task with {model} model...')
-            review_eval_count = 1
-            reviews_comments = ''
-            response_columns = ['index', 'aspect', 'category', 'sentiment']
-            df_response = pd.DataFrame(columns=response_columns)
-            n_shot_file_name = f'{self.work_dir}/step_4_1__{nshots}shots_{model}.csv'
-            
-            df_response.to_csv(n_shot_file_name, index=False, header=True)
-            
-            for i_general in range(i_initial_eval_index, i_final_eval_index):
-                line = base_prompts_df.iloc[i_general]
+        for model in ['sabia-3']:  # 'gpt-4o-mini', 'sabia-3'
+            for nshots in [3]:
                 
-                comm = line[['review_comment']].values[0]
-                comm = self.clean_json_string(comm)
-                reviews_comments += f'\n{{"{i_general}", "{comm}"}}'
+                prompt_zero = self.step_4_1_get_prompt_zero_shot()
+                if nshots == 0:
+                    prompt_n_shot = prompt_zero
+                else:
+                    prompt_n_shot = self.step_4_1_get_prompt_few_shots(prompt_zero, nshots)
                 
-                if review_eval_count == reviews_per_request or i_general == i_final_eval_index-1:
-                    # TODO - using prompt_sys in second argument makes the output json return without "[ ]"
-                    prompt_ai = Prompt_AI(model, f'{prompt_n_shot} {reviews_comments} ')
-                    response, finish_reason = prompt_ai.get_completion()
-                    if finish_reason != 'stop':
-                        print(f'Finish reason not expected: {finish_reason}')
-                        exit(-1)
-                    try:
-                        # response = response.replace('```json', '')
-                        # response = response.replace('```', '')
-                        response = f'[{response}]'
-                        data_list = ast.literal_eval(response)
-                        df_new = pd.DataFrame(data_list, columns=response_columns)
-                        df_response = pd.concat([df_response, df_new], ignore_index=True)
-                        # saves sometimes to do not loose work 
-                        df_new.to_csv(n_shot_file_name, mode='a', index=False, header=False)
+                print(f'Running {nshots} shots task with {model} model...')
+                review_eval_count = 1
+                reviews_comments = ''
+                response_columns = ['index', 'aspect', 'category', 'sentiment']
+                df_response = pd.DataFrame(columns=response_columns)
+                n_shot_file_name = f'{self.work_dir}/step_4_1__{nshots}shots_{model}.csv'
+                
+                df_response.to_csv(n_shot_file_name, index=False, header=True)
+                
+                for i_general in range(i_initial_eval_index, i_final_eval_index):
+                    line = base_prompts_df.iloc[i_general]
                     
-                    except Exception as e:
-                        print(f'\n\nException:{e}')
-                        print(f'\nError creating df: Check:\n {response}')
-                        exit(-1)
+                    comm = line[['review_comment']].values[0]
+                    comm = self.clean_json_string(comm)
+                    reviews_comments += f'\n{{"{i_general}", "{comm}"}}'
+                    
+                    if review_eval_count == reviews_per_request or i_general == i_final_eval_index-1:
+                        # TODO - using prompt_sys in second argument makes the output json return without "[ ]"
+                        prompt_ai = Prompt_AI(model, f'{prompt_n_shot} {reviews_comments} ')
+                        response, finish_reason = prompt_ai.get_completion()
+                        if finish_reason != 'stop':
+                            print(f'Finish reason not expected: {finish_reason}')
+                            exit(-1)
+                        try:
+                            # replaces fixes for zero shot
+                            if nshots == 0:
+                                if str(response).startswith("['"):
+                                    response = response.replace('\']', '\'],')
+                                    response = '[' + response
+                                    response += ']'
+                                elif model == 'gpt-4o-mini':
+                                    response = response.replace('```json', '')
+                                    response = response.replace('```', '')
+                            else:
+                                response = f'[{response}]'
+                            data_list = ast.literal_eval(response)
+                            df_new = pd.DataFrame(data_list, columns=response_columns)
+                            df_response = pd.concat([df_response, df_new], ignore_index=True)
+                            # saves sometimes to do not loose work 
+                            df_new.to_csv(n_shot_file_name, mode='a', index=False, header=False)
+                        
+                        except Exception as e:
+                            print(f'\n\nException:{e}')
+                            print(f'\nError creating df: Check:\n {response}')
+                            exit(-1)
 
-                    review_eval_count = 0
-                    reviews_comments = ''
-                    # WARNING if it was processed all data - due to limitations of request size
-                    # or some data not processed due (empty response)
-                    if len(df_new) < reviews_per_request and i_general != i_final_eval_index-1:
-                        print(f'WARNING: Not all reviews were processed, expected {reviews_per_request}, got {len(df_new)}')
-                        print(f'Last review = {i_general}')
-            
-                review_eval_count += 1
-            
-            # finally, sort to check responses and save all the results
-            df_response = df_response.sort_values(by=['index', 'category', 'aspect'])
+                        review_eval_count = 0
+                        reviews_comments = ''
+                        # WARNING if it was processed all data - due to limitations of request size
+                        # or some data not processed due (empty response)
+                        if len(df_new) < reviews_per_request and i_general != i_final_eval_index-1:
+                            print(f'WARNING: Not all reviews were processed, expected {reviews_per_request}, got {len(df_new)}')
+                            print(f'Last review = {i_general}')
+                
+                    review_eval_count += 1
+                
+                # finally, sort to check responses and save all the results
+                df_response = df_response.sort_values(by=['index', 'category', 'aspect'])
 
-            df_response.to_csv(n_shot_file_name, index=False)
+                df_response.to_csv(n_shot_file_name, index=False)
         
     def run_step_4_3(self):
         pass
