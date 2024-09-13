@@ -35,16 +35,26 @@ class Step_4(Step):
         file = f'{self.work_dir}/step_3.csv'
         self.read_csv(file)
         
-        # reviews for creating one and few shot prompts
-        reviews_for_prompts_df = self.run_step_4_1_reviews_for_prompts()
-        print(reviews_for_prompts_df.describe())
+        # Create "Base Selecao de Prompts" for creating one and few shot prompts based on step_3.csv
+        df_selecao_prompts = self.run_step_4_1_base_selecao_prompts()
+        print(df_selecao_prompts.describe())
         
-        # create Base Prompts
-        base_prompts_df = self.run_step_4_1_base_prompts(reviews_for_prompts_df)
-        print(base_prompts_df.describe())
+        # create "Base Prompts", used to test models and nshots
+        df_base_prompts = self.run_step_4_1_base_prompts(df_selecao_prompts)
+        print(df_base_prompts.describe())
+        
+        # TODO: remove registers used in bases for testing prompts.  remove example reviews in few shot prompts. Bug below,
+        # it makes nan in values when reading df_base_principal
+        # print(f'- Removing registers from df_base_principal - Initial line count: {len(self.df)}')
+        # df_base_principal = self.df[~self.df.isin(df_base_prompts)]
+        df_base_principal = self.df
+        print(f'- df_base_principal - line count: {len(df_base_principal)}')
         
         # do ABSA in Base Prompts for n shots and models, to select the best combination
-        self.run_step_4_2_ABSA(base_prompts_df)
+        # self.run_step_4_2_ABSA_select_model_shots(df_base_prompts)
+        
+        # do ABSA for real with the best combination of models and shots
+        self.run_step_4_3_evaluate_base_principal(df_base_principal)
         
     def run_step_4_1_base_prompts(self, reviews_for_prompts_df: pd.DataFrame):
         """
@@ -96,7 +106,7 @@ class Step_4(Step):
         return df
 
 
-    def run_step_4_1_reviews_for_prompts(self):
+    def run_step_4_1_base_selecao_prompts(self):
         """
         This function selects reviews for creating Prompts ABSA based on certain criteria.
         The 16 reviews are selected manually from this base regarding the constraints
@@ -116,27 +126,117 @@ class Step_4(Step):
                                      ((self.df['review_num_reviews'] >= 368) | (self.df['review_num_reviews'] == 1))]
         df = df.sort_values(by=['beer_style', 'review_general_rate', 'review_num_reviews'])
         
-        df.to_csv(f'{self.work_dir}/step_4_1__reviews_for_prompt.csv')
+        df.to_csv(f'{self.work_dir}/step_4_1__base_selecao_de_prompts.csv')
         
         return df
 
+
+    def run_step_4_2_ABSA_select_model_shots(self, base_prompts_df):
+
+        reviews_per_request = 1
+
+        for model in ['sabia-3', 'gpt-4o-mini']:
+            for nshots in [1, 3]:
+                
+                self.run_ABSA('step_4_2', base_prompts_df, model, nshots, reviews_per_request)
+                
+    def run_step_4_3_evaluate_base_principal(self, df_base_principal):
+            
+        best_model = 'sabia-3'
+        best_nshots = 1
+        num_reviews_to_process = 20
+        reviews_per_request = 10
+        self.run_ABSA('step_4_3', df_base_principal, best_model, best_nshots, 
+                      reviews_per_request=reviews_per_request, num_reviews_to_process=num_reviews_to_process)
+
+            
+    def run_ABSA(self, step_name, df_base, model, nshots, reviews_per_request = 10, num_reviews_to_process = 10):
+
+        i_initial_eval_index = 0  # 0 in from begining, otherwise index of last processed element + 1
+        i_final_eval_index = min(num_reviews_to_process, len(df_base))
+        
+        prompt_zero = self.step_4_1_get_prompt_zero_shot()
+        if nshots == 0:
+            prompt_n_shot = prompt_zero
+        else:
+            prompt_n_shot = self.step_4_1_get_prompt_few_shots(prompt_zero, nshots)
+        
+        print(f'Running {nshots} shots task with {model} model...')
+        review_eval_count = 1
+        reviews_comments = ''
+        response_columns = ['index', 'aspect', 'category', 'sentiment']
+        df_response = pd.DataFrame(columns=response_columns)
+        n_shot_file_name = f'{self.work_dir}/{step_name}__{nshots}shots_{model}.csv'
+        
+        df_response.to_csv(n_shot_file_name, index=False, header=True)
+        
+        for i_general in range(i_initial_eval_index, i_final_eval_index):
+            line = df_base.iloc[i_general]
+            
+            comm = line[['review_comment']].values[0]
+            comm = self.clean_json_string(comm)
+            reviews_comments += f'\n{{"{i_general}", "{comm}"}}'
+            
+            if review_eval_count == reviews_per_request or i_general == i_final_eval_index-1:
+                # TODO - using prompt_sys in second argument makes the output json return without "[ ]"
+                prompt_ai = Prompt_AI(model, f'{prompt_n_shot} {reviews_comments} ')
+                response, finish_reason = prompt_ai.get_completion()
+                if finish_reason != 'stop':
+                    print(f'Finish reason not expected: {finish_reason}')
+                    exit(-1)
+                try:
+                    # replaces fixes for zero shot
+                    if nshots == 0:
+                        if str(response).startswith("['"):
+                            response = response.replace('\']', '\'],')
+                            response = '[' + response
+                            response += ']'
+                        elif model == 'gpt-4o-mini':
+                            response = response.replace('```json', '')
+                            response = response.replace('```', '')
+                    else:
+                        response = f'[{response}]'
+                    data_list = ast.literal_eval(response)
+                    df_new = pd.DataFrame(data_list, columns=response_columns)
+                    df_response = pd.concat([df_response, df_new], ignore_index=True)
+                    # saves sometimes to do not loose work 
+                    df_new.to_csv(n_shot_file_name, mode='a', index=False, header=False)
+                
+                except Exception as e:
+                    print(f'\n\nException:{e}')
+                    print(f'\nError creating df: Check:\n {response}')
+                    exit(-1)
+
+                review_eval_count = 0
+                reviews_comments = ''
+                # WARNING if it was processed all data - due to limitations of request size
+                # or some data not processed due (empty response)
+                if len(df_new) < reviews_per_request and i_general != i_final_eval_index-1:
+                    print(f'WARNING: Not all reviews were processed, expected {reviews_per_request}, got {len(df_new)}')
+                    print(f'Last review = {i_general}')
+        
+            review_eval_count += 1
+        
+        # finally, sort to check responses and save all the results
+        df_response = df_response.sort_values(by=['index', 'category', 'aspect'])
+        df_response.to_csv(n_shot_file_name, index=False)
 
     def step_4_1_get_prompt_zero_shot(self):
             
         print(f'Step 4.1 - "Prompt ABSA zero-shot" creation')
         prompt_sys = """ 
-Você é um extrator de aspectos de cerveja. Do texto, extraia os ‘aspectos’ e a ‘categoria’ relacionados aos aspectos da cerveja. As categorias devem estar
-dentre os valores: ‘visual’, ‘aroma’, ‘sabor’, ‘amargor’, ‘álcool’ e ‘sensação na boca’. Extraia o ‘sentimento’ dentre os valores ‘muito negativo’, ‘negativo’, ‘neutro’,
-‘positivo’ ou ‘muito positivo’ para cada par aspecto/categoria. 
-Cada avaliação a ser avaliada está compreendida entre chaves. Cada item contém "index", que registra o índice da avaliação e "review_comment", que é o texto a ser avaliado. 
-Não faça comentários, apenas gere a saída dos campos extraídos no formato a seguir: ['index','aspecto','categoria','sentimento']
+Você é um extrator de aspectos de cerveja. Do texto, extraia os ‘aspectos’ e a ‘categoria’ relacionados aos aspectos da cerveja. As categorias devem estar \
+dentre os valores: ‘visual’, ‘aroma’, ‘sabor’, ‘amargor’, ‘álcool’ e ‘sensação na boca’. Extraia o ‘sentimento’ dentre os valores ‘muito negativo’, ‘negativo’, ‘neutro’, \
+‘positivo’ ou ‘muito positivo’ para cada par aspecto/categoria. \
+Cada avaliação a ser avaliada está compreendida entre chaves. Cada item contém "index", que registra o índice da avaliação e "review_comment", que é o texto a ser avaliado. \
+Não faça comentários, apenas gere a saída dos campos extraídos no formato a seguir: ['index','aspecto','categoria','sentimento'], \
 """
         return prompt_sys
 
     def step_4_1_get_prompt_few_shots(self, prompt_zero_shot: str, num_shots: int):
         """
         This function creates the Prompt ABSA few-shots based on the Prompt ABSA zero-shot.
-        The reviews were selected manually from base step_4_1__reviews_for_prompt.csv, considering good and bad reviews 
+        The reviews were selected manually from base step_4_1__base_selecao_de_prompts.csv, considering good and bad reviews 
         for 4 main styles of beer, by experienced reviweres, and 2 reviews from newbies
         Parameters:
             self (object): The object instance that contains the data.
@@ -156,19 +256,19 @@ Não faça comentários, apenas gere a saída dos campos extraídos no formato a
 trazendo notas cítricas de laranja e semente de coentro. Na boca, início e final amargos e efervescentes, quanto ao sabor... horrível... \
 agitei para capturar um pouco do fermento sedimentando no fundo e creio que foi meu erro... é difícil descrever, exceto a sensação de estar \
 estragada... sabor de giz e terra. Carbonatação baixa. Corpo médio. Uma terrível [BJCP2015] 24A: Witbier. Poupe suas papilas gustativas... \
-ou experimente por sua própria conta e risco.
-['0', 'cor do líquido amarelado', 'visual', 'neutro'],
-['0', 'cor do líquido turvo', 'visual', 'neutro'],
-['0', 'formação de espuma baixa', 'visual', 'negativo'],
-['0', 'espuma efervescente', 'visual', 'negativo'],
-['0', 'espuma pouco persistente', 'visual', 'negativo'],
-['0', 'notas cítricas de laranja', 'aroma', 'positivo'],
-['0', 'notas cítricas de semente de coentro', 'aroma', 'positivo'],
-['0', 'giz', 'sabor', 'muito negativo'],
-['0', 'terra', 'sabor', 'muito negativo'],
-['0', 'efervescente', 'sensação na boca', 'neutro'],
-['0', 'carbonatação baixa', 'sensação na boca', 'neutro'],
-['0', 'corpo médio', 'sensação na boca', 'neutro']
+ou experimente por sua própria conta e risco. \
+['0', 'cor do líquido amarelado', 'visual', 'neutro'], \
+['0', 'cor do líquido turvo', 'visual', 'neutro'], \
+['0', 'formação de espuma baixa', 'visual', 'negativo'], \
+['0', 'espuma efervescente', 'visual', 'negativo'], \
+['0', 'espuma pouco persistente', 'visual', 'negativo'], \
+['0', 'notas cítricas de laranja', 'aroma', 'positivo'], \
+['0', 'notas cítricas de semente de coentro', 'aroma', 'positivo'], \
+['0', 'giz', 'sabor', 'muito negativo'], \
+['0', 'terra', 'sabor', 'muito negativo'], \
+['0', 'efervescente', 'sensação na boca', 'neutro'], \
+['0', 'carbonatação baixa', 'sensação na boca', 'neutro'], \
+['0', 'corpo médio', 'sensação na boca', 'neutro'] \
 "
 """
         #
@@ -179,22 +279,22 @@ ou experimente por sua própria conta e risco.
 de creme branco que mantém uma fina camada persistente, deixando marcas no tumbler. Aroma: Cítrico com notas de limão, especiarias como coentro\
 e pimenta, muito bom. Sabor: Maltado com cereais, frutado de limão e especiarias dominam os sentidos. O final do gole apresenta-se levemente \
 amargo, levemente ácido e picante. O sabor cítrico do limão permanece por todo o gole, se prolongando no retrogosto, apresentando excelente \
-drinkability e refrescância absurda! Excelente breja!!
-['0', 'cor do líquido amarelo-palha', 'visual', 'neutro'],
-['0', 'cor do líquido turvo', 'visual', 'neutro'],
-['0', 'formação de espuma média', 'visual', 'neutro'],
-['0', 'cor da espuma branca', 'visual', 'neutro'],
-['0', 'notas cítricas de limão', 'aroma', 'muito positivo'],
-['0', 'coentro', 'aroma', 'muito positivo'],
-['0', 'especiarias', 'aroma', 'muito positivo'],
-['0', 'maltado com cereais', 'sabor', 'positivo'],
-['0', 'frutado de limão', 'sabor', 'positivo'],
-['0', 'especiarias', 'sabor', 'positivo'],
-['0', 'ácido leve', 'sabor', 'positivo'],
-['0', 'picante', 'sabor', 'positivo'],
-['0', 'cítrico do limão', 'sabor', 'muito positivo'],
-['0', 'drinkability alta', 'sensação na boca', 'muito positivo'],
-['0', 'refrescância alta', 'sensação na boca', 'muito positivo']
+drinkability e refrescância absurda! Excelente breja!! \
+['0', 'cor do líquido amarelo-palha', 'visual', 'neutro'], \
+['0', 'cor do líquido turvo', 'visual', 'neutro'], \
+['0', 'formação de espuma média', 'visual', 'neutro'], \
+['0', 'cor da espuma branca', 'visual', 'neutro'], \
+['0', 'notas cítricas de limão', 'aroma', 'muito positivo'], \
+['0', 'coentro', 'aroma', 'muito positivo'], \
+['0', 'especiarias', 'aroma', 'muito positivo'], \
+['0', 'maltado com cereais', 'sabor', 'positivo'], \
+['0', 'frutado de limão', 'sabor', 'positivo'], \
+['0', 'especiarias', 'sabor', 'positivo'], \
+['0', 'ácido leve', 'sabor', 'positivo'], \
+['0', 'picante', 'sabor', 'positivo'], \
+['0', 'cítrico do limão', 'sabor', 'muito positivo'], \
+['0', 'drinkability alta', 'sensação na boca', 'muito positivo'], \
+['0', 'refrescância alta', 'sensação na boca', 'muito positivo'] \
 "
 """
 
@@ -256,17 +356,17 @@ drinkability e refrescância absurda! Excelente breja!!
 Eisenbahn por exemplo. Aparência: coloração dourada clara turva com creme de média formação e baixa persistência. Aroma: acanhado. Sabor: \
 notas de banana e nada de cravo com um final doce demais. Estranho. Corpo: aguado até para pilsen que dirá weiss. Final: estranho, seco e \
 curto. Conjunto: desequilibrado pelo excesso do doce e pelo descompassado do corpo e carbonatação. Drinkability baixa e refrescância \
-comprometida.
-['0', 'cor do líquido dourado claro', 'visual', 'neutro'],
-['0', 'líquido turvo', 'visual', 'neutro'],
-['0', 'formação de espuma médio', 'visual', 'neutro'],
-['0', 'espuma pouco persistente', 'visual', 'negativo'],
-['0', 'notas de banana', 'sabor', 'neutro'],
-['0', 'dulçor alto', 'sabor', 'negativo'],
-['0', 'corpo aguado', 'sensação na boca', 'negativo'],
-['0', 'final seco e curto', 'sensação na boca', 'negativo'],
-['0', 'drinkability baixa', 'sensação na boca', 'negativo'],
-['0', 'refrescância baixa', 'sensação na boca', 'negativo']
+comprometida. \
+['0', 'cor do líquido dourado claro', 'visual', 'neutro'], \
+['0', 'líquido turvo', 'visual', 'neutro'], \
+['0', 'formação de espuma médio', 'visual', 'neutro'], \
+['0', 'espuma pouco persistente', 'visual', 'negativo'], \
+['0', 'notas de banana', 'sabor', 'neutro'], \
+['0', 'dulçor alto', 'sabor', 'negativo'], \
+['0', 'corpo aguado', 'sensação na boca', 'negativo'], \
+['0', 'final seco e curto', 'sensação na boca', 'negativo'], \
+['0', 'drinkability baixa', 'sensação na boca', 'negativo'], \
+['0', 'refrescância baixa', 'sensação na boca', 'negativo'] \
 "
 """
         #
@@ -276,26 +376,26 @@ comprometida.
 "Apresentou coloração dourada com espuma branca de média formação e longa persistência. \
 No aroma temos banana, cravo, mel, floral e pão doce. Na boca as notas permanecem, complementadas por cereais, herbal sutil e toques \
 picantes. Tem corpo médio, carbonatação moderada e sensação refrescante. Excelente!
-['0', 'cor do líquido dourado', 'visual', 'neutro'],
-['0', 'cor da espuma branca', 'visual', 'neutro'],
-['0', 'formação de espuma média', 'visual', 'neutro'],
-['0', 'espuma persistente', 'visual', 'positivo'],
-['0', 'banana', 'aroma', 'positivo'],
-['0', 'cravo', 'aroma', 'positivo'],
-['0', 'floral', 'aroma', 'positivo'],
-['0', 'mel', 'aroma', 'positivo'],
-['0', 'pão doce', 'aroma', 'positivo'],
-['0', 'banana', 'sabor', 'positivo'],
-['0', 'cravo', 'sabor', 'positivo'],
-['0', 'floral', 'sabor', 'positivo'],
-['0', 'mel', 'sabor', 'positivo'],
-['0', 'pão doce', 'sabor', 'positivo'],
-['0', 'cereais', 'sabor', 'positivo'],
-['0', 'herbal sutil', 'sabor', 'positivo'],
-['0', 'notas picantes', 'sabor', 'positivo'],
-['0', 'corpo médio', 'sensação na boca', 'positivo'],
-['0', 'carbonatação moderada', 'sensação na boca', 'positivo'],
-['0', 'refrescância alta', 'sensação na boca', 'positivo']
+['0', 'cor do líquido dourado', 'visual', 'neutro'], \
+['0', 'cor da espuma branca', 'visual', 'neutro'], \
+['0', 'formação de espuma média', 'visual', 'neutro'], \
+['0', 'espuma persistente', 'visual', 'positivo'], \
+['0', 'banana', 'aroma', 'positivo'], \
+['0', 'cravo', 'aroma', 'positivo'], \
+['0', 'floral', 'aroma', 'positivo'], \
+['0', 'mel', 'aroma', 'positivo'], \
+['0', 'pão doce', 'aroma', 'positivo'], \
+['0', 'banana', 'sabor', 'positivo'], \
+['0', 'cravo', 'sabor', 'positivo'], \
+['0', 'floral', 'sabor', 'positivo'], \
+['0', 'mel', 'sabor', 'positivo'], \
+['0', 'pão doce', 'sabor', 'positivo'], \
+['0', 'cereais', 'sabor', 'positivo'], \
+['0', 'herbal sutil', 'sabor', 'positivo'], \
+['0', 'notas picantes', 'sabor', 'positivo'], \
+['0', 'corpo médio', 'sensação na boca', 'positivo'], \
+['0', 'carbonatação moderada', 'sensação na boca', 'positivo'], \
+['0', 'refrescância alta', 'sensação na boca', 'positivo'] \
 "
 """
 
@@ -337,17 +437,17 @@ picantes. Tem corpo médio, carbonatação moderada e sensação refrescante. Ex
         style3_exp_lowrate = """
 "Cor amarela clara, com certa turbidez, de cara fugindo um pouco da expectativa do estilo. Aroma maltado com \
 cítrico muito suave e paladar maltado, pouco lupulado e quase sem presença cítrica. Longe de uma IPA. Média carbonatação e boa drinkability,\
-corpo leve. Desagradou....
-['0', 'cor do líquido amarelo', 'visual', 'negativo'],
-['0', 'líquido turvo', 'visual', 'negativo'],
-['0', 'maltado', 'aroma', 'neutro'],
-['0', 'pouco cítrico', 'aroma', 'negativo'],
-['0', 'maltado', 'sabor', 'neutro'],
-['0', 'pouco lupulado', 'sabor', 'negativo'],
-['0', 'pouco cítrico', 'sabor', 'negativo'],
-['0', 'média carbonatação', 'sensação na boca', 'neutro'],
-['0', 'drinkability boa', 'sensação na boca', 'positivo'],
-['0', 'corpo baixo', 'sensação na boca', 'neutro']
+corpo leve. Desagradou.... \
+['0', 'cor do líquido amarelo', 'visual', 'negativo'], \
+['0', 'líquido turvo', 'visual', 'negativo'], \
+['0', 'maltado', 'aroma', 'neutro'], \
+['0', 'pouco cítrico', 'aroma', 'negativo'], \
+['0', 'maltado', 'sabor', 'neutro'], \
+['0', 'pouco lupulado', 'sabor', 'negativo'], \
+['0', 'pouco cítrico', 'sabor', 'negativo'], \
+['0', 'média carbonatação', 'sensação na boca', 'neutro'], \
+['0', 'drinkability boa', 'sensação na boca', 'positivo'], \
+['0', 'corpo baixo', 'sensação na boca', 'neutro'] \
 "
 """
         #
@@ -362,28 +462,28 @@ Perfumadíssima. Aroma pra mim é 6/5! kkkk Sabor é inicialmente doce, doce de 
 com um amargor leve e um malte torrado bem sutil. Corpo denso e licoroso. Conjunto equilibrado e primoroso, no qual o doce inicial se acerta\
 e abraça bem o amargor floral final. Final seco e levemente amargo. Retrogosto amargo e denso. SENSACIONAL. É uma IPA diferente, devido ao \
 fato de o seu padrão puxar muito mais pro doce do que pro amargor lupulento, não compararei com as demais IPAs, pra mim entraria como uma \
-Specialty Beer. Já está entre as minhas favoritas. Mais um preço abusivo da Bodebrown... quase R$7 por 100mL. Vacilo.
-['0', 'cor do líquido âmbar alaranjado', 'visual', 'muito positivo'],
-['0', 'cor da espuma bege leve', 'visual', 'muito positivo'],
-['0', 'formação de espuma alta', 'visual', 'muito positivo'],
-['0', 'espuma persistente', 'visual', 'muito positivo'],
-['0', 'floral', 'aroma', 'muito positivo'],
-['0', 'cítrico', 'aroma', 'muito positivo'],
-['0', 'caramelado', 'aroma', 'muito positivo'],
-['0', 'melaço', 'aroma', 'muito positivo'],
-['0', 'chocolate cremoso', 'aroma', 'muito positivo'],
-['0', 'notas herbais', 'aroma', 'muito positivo'],
-['0', 'notas de laranja', 'aroma', 'muito positivo'],
-['0', 'dulçor', 'sabor', 'positivo'],
-['0', 'doce de chocolate branco/cremoso', 'sabor', 'positivo'],
-['0', 'cacau', 'sabor', 'positivo'],
-['0', 'caramelo/toffe', 'sabor', 'positivo'],
-['0', 'malte torrado leve', 'sabor', 'positivo'],
-['0', 'amargor leve', 'amargor', 'positivo'],
-['0', 'corpo denso', 'sensação na boca', 'positivo'],
-['0', 'corpo licoroso', 'sensação na boca', 'positivo'],
-['0', 'amargor floral', 'amargor', 'positivo'],
-['0', 'final seco', 'sensação na boca', 'positivo']
+Specialty Beer. Já está entre as minhas favoritas. Mais um preço abusivo da Bodebrown... quase R$7 por 100mL. Vacilo. \
+['0', 'cor do líquido âmbar alaranjado', 'visual', 'muito positivo'], \
+['0', 'cor da espuma bege leve', 'visual', 'muito positivo'], \
+['0', 'formação de espuma alta', 'visual', 'muito positivo'], \
+['0', 'espuma persistente', 'visual', 'muito positivo'], \
+['0', 'floral', 'aroma', 'muito positivo'], \
+['0', 'cítrico', 'aroma', 'muito positivo'], \
+['0', 'caramelado', 'aroma', 'muito positivo'], \
+['0', 'melaço', 'aroma', 'muito positivo'], \
+['0', 'chocolate cremoso', 'aroma', 'muito positivo'], \
+['0', 'notas herbais', 'aroma', 'muito positivo'], \
+['0', 'notas de laranja', 'aroma', 'muito positivo'], \
+['0', 'dulçor', 'sabor', 'positivo'], \
+['0', 'doce de chocolate branco/cremoso', 'sabor', 'positivo'], \
+['0', 'cacau', 'sabor', 'positivo'], \
+['0', 'caramelo/toffe', 'sabor', 'positivo'], \
+['0', 'malte torrado leve', 'sabor', 'positivo'], \
+['0', 'amargor leve', 'amargor', 'positivo'], \
+['0', 'corpo denso', 'sensação na boca', 'positivo'], \
+['0', 'corpo licoroso', 'sensação na boca', 'positivo'], \
+['0', 'amargor floral', 'amargor', 'positivo'], \
+['0', 'final seco', 'sensação na boca', 'positivo'] \
 "
 """
 
@@ -392,25 +492,25 @@ Specialty Beer. Já está entre as minhas favoritas. Mais um preço abusivo da B
         # - inexperienced - low rate
         # Thiago Coelho	1	1,5	
         style3_inexp_lowrate = """
-"Rótulo agradável, em garrafa âmbar bojuda. Tampa sem rótulo, dando um aspecto desleixado à cerveja. As cervejas bastante lupuladas sempre têm uma agradável
-antecipação do aroma logo quando se abre a garrafa. Essa não tinha: mau presságio... Cor âmbar, translúcida,excelente sensação visual ao ser servida, particularmente
-pela intensa formação de espuma, que é persistente. Aroma herbáceo, suave demais,muito aquém para uma cerveja que carrega no lúpulo aromático, inclusive tendo sido 
-feito dry hopping com Cascade, um lúpulo essencialmente aromático . Se a intenção era fazer uma autêntica American IPA, vê-se aqui mais pra uma do velho continente, 
-inglesa, precisamente. No sabor,perde-se completamente: tem um amargor intenso mas adstringente, incomodativo, que parece mesmo arranhar a língua e que perdura no 
-aftertaste.Baixíssima drinkability. Vê-se muito malte, particularmente no aftertaste, quando se mantém um retrogosto de mel e pão. Não vi qualquer off-flavor no exemplar
-que degustei. Pergunto: é uma IPA ou é uma American Pale Ale lupulada em excesso (amargor excessivo, por ser incomodativo...)?
-['0', 'cor do líquido âmbar', 'visual', 'neutro'],
-['0', 'líquido translúcido', 'visual', 'neutro'],
-['0', 'formação de espuma ótima', 'visual', 'muito positivo'],
-['0', 'espuma persistente', 'visual', 'muito positivo'],
-['0', 'herbáceo suave demais', 'aroma', 'negativo'],
-['0', 'amargor excessivo', 'amargor', 'negativo'],
-['0', 'adstringente', 'amargor', 'negativo'],
-['0', 'maltado alto', 'sabor', 'neutro'],
-['0', 'retrogosto de mel', 'sabor', 'neutro'],
-['0', 'retrogosto de pão', 'sabor', 'neutro'],
-['0', 'sem off-flavor', 'aroma', 'positivo'],
-['0', 'lupulada em excesso', 'sabor', 'negativo']
+"Rótulo agradável, em garrafa âmbar bojuda. Tampa sem rótulo, dando um aspecto desleixado à cerveja. As cervejas bastante lupuladas sempre têm uma agradável \
+antecipação do aroma logo quando se abre a garrafa. Essa não tinha: mau presságio... Cor âmbar, translúcida,excelente sensação visual ao ser servida, particularmente \
+pela intensa formação de espuma, que é persistente. Aroma herbáceo, suave demais,muito aquém para uma cerveja que carrega no lúpulo aromático, inclusive tendo sido  \
+feito dry hopping com Cascade, um lúpulo essencialmente aromático . Se a intenção era fazer uma autêntica American IPA, vê-se aqui mais pra uma do velho continente,  \
+inglesa, precisamente. No sabor,perde-se completamente: tem um amargor intenso mas adstringente, incomodativo, que parece mesmo arranhar a língua e que perdura no  \
+aftertaste.Baixíssima drinkability. Vê-se muito malte, particularmente no aftertaste, quando se mantém um retrogosto de mel e pão. Não vi qualquer off-flavor no exemplar \
+que degustei. Pergunto: é uma IPA ou é uma American Pale Ale lupulada em excesso (amargor excessivo, por ser incomodativo...)? \
+['0', 'cor do líquido âmbar', 'visual', 'neutro'], \
+['0', 'líquido translúcido', 'visual', 'neutro'], \
+['0', 'formação de espuma ótima', 'visual', 'muito positivo'], \
+['0', 'espuma persistente', 'visual', 'muito positivo'], \
+['0', 'herbáceo suave demais', 'aroma', 'negativo'], \
+['0', 'amargor excessivo', 'amargor', 'negativo'], \
+['0', 'adstringente', 'amargor', 'negativo'], \
+['0', 'maltado alto', 'sabor', 'neutro'], \
+['0', 'retrogosto de mel', 'sabor', 'neutro'], \
+['0', 'retrogosto de pão', 'sabor', 'neutro'], \
+['0', 'sem off-flavor', 'aroma', 'positivo'], \
+['0', 'lupulada em excesso', 'sabor', 'negativo'] \
 "
 """
 
@@ -420,9 +520,9 @@ que degustei. Pergunto: é uma IPA ou é uma American Pale Ale lupulada em exces
         style3_inexp_highrate = """
 "Cerveja com sabor de cerveja forte. Lúpulo e álcool presentes que dão o perfeito sabor de cerveja India \
 Palle Ale. Mais fantástico ainda reconhecer uma cerveja dessa no Brasil, respeitando os processos de pureza necessários para fabricação de \
-grandes cervejas. Vale tomar com comidas mais fortes e apreciar durante todo o ano. Espuma maravilhos que matém o aroma da cerveja de forma\
-prolongada. Uma perfeição em termos de equilíbrio. Sensacional!
-['0', 'formação de espuma boa', 'visual', 'muito positivo']
+grandes cervejas. Vale tomar com comidas mais fortes e apreciar durante todo o ano. Espuma maravilhos que matém o aroma da cerveja de forma \
+prolongada. Uma perfeição em termos de equilíbrio. Sensacional! \
+['0', 'formação de espuma boa', 'visual', 'muito positivo'] \
 "
 """
         
@@ -433,17 +533,17 @@ prolongada. Uma perfeição em termos de equilíbrio. Sensacional!
         style4_exp_lowrate = """
 "Coloração negra opaca. Espuma bege de alta formação e pouca duração. Aroma de caramelo e açúcar mascavo. Sabor quase \
 exclusivo de caramelo, com leve torrado e um dulçor muito acima da média, enjoativa demais. Praticamente uma malzbier menos doce. Totalmente \
-fora do estilo. Bebi apenas um copo e deixei o resto para mulherada.
-['0', 'cor do líquido negro opaca', 'visual', 'neutro'],
-['0', 'cor da espuma bege', 'visual', 'neutro'],
-['0', 'formação de espuma alta', 'visual', 'neutro'],
-['0', 'espuma pouco persistente', 'visual', 'negativo'],
-['0', 'caramelo', 'aroma', 'neutro'],
-['0', 'ácúcar mascavo', 'aroma', 'neutro'],
-['0', 'torrado leve', 'sabor', 'positivo'],
-['0', 'caramelo', 'sabor', 'neutro'],
-['0', 'torrado leve', 'sabor', 'neutro'],
-['0', 'dulçor alto', 'sabor', 'negativo']
+fora do estilo. Bebi apenas um copo e deixei o resto para mulherada. \
+['0', 'cor do líquido negro opaca', 'visual', 'neutro'], \
+['0', 'cor da espuma bege', 'visual', 'neutro'], \
+['0', 'formação de espuma alta', 'visual', 'neutro'], \
+['0', 'espuma pouco persistente', 'visual', 'negativo'], \
+['0', 'caramelo', 'aroma', 'neutro'], \
+['0', 'ácúcar mascavo', 'aroma', 'neutro'], \
+['0', 'torrado leve', 'sabor', 'positivo'], \
+['0', 'caramelo', 'sabor', 'neutro'], \
+['0', 'torrado leve', 'sabor', 'neutro'], \
+['0', 'dulçor alto', 'sabor', 'negativo'] \
 "
 """
         #
@@ -459,30 +559,30 @@ camada fina e efêmera de espuma bege clara. Na boca mostra corpo médio e reduz
 resultando em notas de coco queimado, canela, baunilha, ameixa seca e café - riscadas por leve dulçor maltado. Álcool inacreditavelmente bem \
 inserido (sério, cadê esse álcool todo anunciado?) O final segue ligeiramente adocicado, com bastante cachaça e breve torrado.  "Drinkability" \
 relativamente alta em vista de toda sua "periculosidade", por assim dizer.  Blend muito bem construído, com cerveja e cachaça na mais perfeita \
-harmonia. Parabéns aos envolvidos! ????
-['0', 'cor do líquido castanho avermelhado', 'visual', 'neutro'],
-['0', 'cor do líquido semi translúcido', 'visual', 'neutro'],
-['0', 'cor da espuma bege clara ', 'visual', 'neutro'],
-['0', 'formação de espuma baixa', 'visual', 'neutro'],
-['0', 'intenso de cachaça', 'aroma', 'muito positivo'],
-['0', 'coco', 'aroma', 'muito positivo'],
-['0', 'canela', 'aroma', 'muito positivo'],
-['0', 'baunilha', 'aroma', 'muito positivo'],
-['0', 'mel', 'aroma', 'muito positivo'],
-['0', 'toffee', 'aroma', 'muito positivo'],
-['0', 'melaço', 'aroma', 'muito positivo'],
-['0', 'ameixa seca', 'aroma', 'muito positivo'],
-['0', 'notas de coco queimado', 'sabor', 'positivo'],
-['0', 'notas de canela', 'sabor', 'positivo'],
-['0', 'notas de baunilha', 'sabor', 'positivo'],
-['0', 'notas de ameixa seca', 'sabor', 'positivo'],
-['0', 'café', 'sabor', 'positivo'],
-['0', 'dulçor maltado leve', 'sabor', 'positivo'],
-['0', 'alcool imperceptível', 'alcool', 'muito positivo'],
-['0', 'final dulçor leve', 'sabor', 'positivo'],
-['0', 'final cachaça', 'sabor', 'positivo'],
-['0', 'final leve torrado', 'sabor', 'positivo'],
-['0', 'drinkability alta', 'sensação na boca', 'positivo']
+harmonia. Parabéns aos envolvidos! ???? \
+['0', 'cor do líquido castanho avermelhado', 'visual', 'neutro'], \
+['0', 'cor do líquido semi translúcido', 'visual', 'neutro'], \
+['0', 'cor da espuma bege clara ', 'visual', 'neutro'], \
+['0', 'formação de espuma baixa', 'visual', 'neutro'], \
+['0', 'intenso de cachaça', 'aroma', 'muito positivo'], \
+['0', 'coco', 'aroma', 'muito positivo'], \
+['0', 'canela', 'aroma', 'muito positivo'], \
+['0', 'baunilha', 'aroma', 'muito positivo'], \
+['0', 'mel', 'aroma', 'muito positivo'], \
+['0', 'toffee', 'aroma', 'muito positivo'], \
+['0', 'melaço', 'aroma', 'muito positivo'], \
+['0', 'ameixa seca', 'aroma', 'muito positivo'], \
+['0', 'notas de coco queimado', 'sabor', 'positivo'], \
+['0', 'notas de canela', 'sabor', 'positivo'], \
+['0', 'notas de baunilha', 'sabor', 'positivo'], \
+['0', 'notas de ameixa seca', 'sabor', 'positivo'], \
+['0', 'café', 'sabor', 'positivo'], \
+['0', 'dulçor maltado leve', 'sabor', 'positivo'], \
+['0', 'alcool imperceptível', 'alcool', 'muito positivo'], \
+['0', 'final dulçor leve', 'sabor', 'positivo'], \
+['0', 'final cachaça', 'sabor', 'positivo'], \
+['0', 'final leve torrado', 'sabor', 'positivo'], \
+['0', 'drinkability alta', 'sensação na boca', 'positivo'] \
 "
 """
 
@@ -519,8 +619,9 @@ harmonia. Parabéns aos envolvidos! ????
 # ]]"
 # """
 
-        prompt_few_shots = prompt_zero_shot + """
-Abaixo, entre aspas, exemplos de textos de avaliações e o resultado esperado. Ignore o valor do campo index dos exemplos, pois são apenas para mostrar o formato de saída.
+        prompt_few_shots = prompt_zero_shot + """ \
+Abaixo, entre aspas, exemplos de textos de avaliações e o resultado esperado. \
+Ignore o valor do campo index dos exemplos, pois são apenas para mostrar o formato de saída.
 """
         
         if num_shots == 1:
@@ -557,85 +658,3 @@ Abaixo, entre aspas, exemplos de textos de avaliações e o resultado esperado. 
         # prompt_few_shots += "Abaixo, as avaliações a serem identificados os aspectos, categoria e sentimento."
         return prompt_few_shots
 
-
-    def run_step_4_2_ABSA(self, base_prompts_df):
-
-        reviews_per_request = 10
-        i_initial_eval_index = 0  # 0 in from begining, otherwise index of last processed element + 1
-        i_final_eval_index = len(base_prompts_df)
-        
-        
-        for model in ['sabia-3']:  # 'gpt-4o-mini', 'sabia-3'
-            for nshots in [3]:
-                
-                prompt_zero = self.step_4_1_get_prompt_zero_shot()
-                if nshots == 0:
-                    prompt_n_shot = prompt_zero
-                else:
-                    prompt_n_shot = self.step_4_1_get_prompt_few_shots(prompt_zero, nshots)
-                
-                print(f'Running {nshots} shots task with {model} model...')
-                review_eval_count = 1
-                reviews_comments = ''
-                response_columns = ['index', 'aspect', 'category', 'sentiment']
-                df_response = pd.DataFrame(columns=response_columns)
-                n_shot_file_name = f'{self.work_dir}/step_4_1__{nshots}shots_{model}.csv'
-                
-                df_response.to_csv(n_shot_file_name, index=False, header=True)
-                
-                for i_general in range(i_initial_eval_index, i_final_eval_index):
-                    line = base_prompts_df.iloc[i_general]
-                    
-                    comm = line[['review_comment']].values[0]
-                    comm = self.clean_json_string(comm)
-                    reviews_comments += f'\n{{"{i_general}", "{comm}"}}'
-                    
-                    if review_eval_count == reviews_per_request or i_general == i_final_eval_index-1:
-                        # TODO - using prompt_sys in second argument makes the output json return without "[ ]"
-                        prompt_ai = Prompt_AI(model, f'{prompt_n_shot} {reviews_comments} ')
-                        response, finish_reason = prompt_ai.get_completion()
-                        if finish_reason != 'stop':
-                            print(f'Finish reason not expected: {finish_reason}')
-                            exit(-1)
-                        try:
-                            # replaces fixes for zero shot
-                            if nshots == 0:
-                                if str(response).startswith("['"):
-                                    response = response.replace('\']', '\'],')
-                                    response = '[' + response
-                                    response += ']'
-                                elif model == 'gpt-4o-mini':
-                                    response = response.replace('```json', '')
-                                    response = response.replace('```', '')
-                            else:
-                                response = f'[{response}]'
-                            data_list = ast.literal_eval(response)
-                            df_new = pd.DataFrame(data_list, columns=response_columns)
-                            df_response = pd.concat([df_response, df_new], ignore_index=True)
-                            # saves sometimes to do not loose work 
-                            df_new.to_csv(n_shot_file_name, mode='a', index=False, header=False)
-                        
-                        except Exception as e:
-                            print(f'\n\nException:{e}')
-                            print(f'\nError creating df: Check:\n {response}')
-                            exit(-1)
-
-                        review_eval_count = 0
-                        reviews_comments = ''
-                        # WARNING if it was processed all data - due to limitations of request size
-                        # or some data not processed due (empty response)
-                        if len(df_new) < reviews_per_request and i_general != i_final_eval_index-1:
-                            print(f'WARNING: Not all reviews were processed, expected {reviews_per_request}, got {len(df_new)}')
-                            print(f'Last review = {i_general}')
-                
-                    review_eval_count += 1
-                
-                # finally, sort to check responses and save all the results
-                df_response = df_response.sort_values(by=['index', 'category', 'aspect'])
-
-                df_response.to_csv(n_shot_file_name, index=False)
-        
-    def run_step_4_3(self):
-        pass
-
-            
