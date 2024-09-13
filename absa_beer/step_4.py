@@ -11,6 +11,7 @@ import pandas as pd
 import ast
 from step import Step
 from Prompt_AI import Prompt_AI
+import re
 
 class Step_4(Step):
 
@@ -126,7 +127,7 @@ class Step_4(Step):
                                      ((self.df['review_num_reviews'] >= 368) | (self.df['review_num_reviews'] == 1))]
         df = df.sort_values(by=['beer_style', 'review_general_rate', 'review_num_reviews'])
         
-        df.to_csv(f'{self.work_dir}/step_4_1__base_selecao_de_prompts.csv')
+        df.to_csv(f'{self.work_dir}/step_4_1__base_for_prompts_selection.csv')
         
         return df
 
@@ -145,7 +146,7 @@ class Step_4(Step):
         best_model = 'sabia-3'
         best_nshots = 1
         num_reviews_to_process = 20
-        reviews_per_request = 10
+        reviews_per_request = 20
         self.run_ABSA('step_4_3', df_base_principal, best_model, best_nshots, 
                       reviews_per_request=reviews_per_request, num_reviews_to_process=num_reviews_to_process)
 
@@ -166,7 +167,7 @@ class Step_4(Step):
         reviews_comments = ''
         response_columns = ['index', 'aspect', 'category', 'sentiment']
         df_response = pd.DataFrame(columns=response_columns)
-        n_shot_file_name = f'{self.work_dir}/{step_name}__{nshots}shots_{model}.csv'
+        n_shot_file_name = f'{self.work_dir}/{step_name}__{nshots}shots_{model}_{reviews_per_request}rev_per_req.csv'
         
         df_response.to_csv(n_shot_file_name, index=False, header=True)
         
@@ -186,16 +187,18 @@ class Step_4(Step):
                     exit(-1)
                 try:
                     # replaces fixes for zero shot
-                    if nshots == 0:
-                        if str(response).startswith("['"):
-                            response = response.replace('\']', '\'],')
-                            response = '[' + response
-                            response += ']'
-                        elif model == 'gpt-4o-mini':
-                            response = response.replace('```json', '')
-                            response = response.replace('```', '')
-                    else:
+                    response = response.strip()
+                    # fix for sabia-3 alucination with "]],[" each review
+                    pattern = r'\]\s*[\r\n]*\]\s*[\r\n]*,\s*[\r\n]*\[\s*[\r\n]*'
+                    response = re.sub(pattern, '],',response)
+                    # fix for '[' at the beginning and end if not present already
+                    match = re.search(r'^\[\s*[\r\n]*\[', response)
+                    if not match:
                         response = f'[{response}]'
+                    # fix for gpt allucionations
+                    response = response.replace('```json', '')
+                    response = response.replace('```', '')
+                    
                     data_list = ast.literal_eval(response)
                     df_new = pd.DataFrame(data_list, columns=response_columns)
                     df_response = pd.concat([df_response, df_new], ignore_index=True)
@@ -218,7 +221,8 @@ class Step_4(Step):
             review_eval_count += 1
         
         # finally, sort to check responses and save all the results
-        df_response = df_response.sort_values(by=['index', 'category', 'aspect'])
+        df_response['index'] = df_response['index'].astype(int)
+        df_response = df_response.sort_values(by=['index', 'aspect'])
         df_response.to_csv(n_shot_file_name, index=False)
 
     def step_4_1_get_prompt_zero_shot(self):
@@ -236,7 +240,7 @@ Não faça comentários, apenas gere a saída dos campos extraídos no formato a
     def step_4_1_get_prompt_few_shots(self, prompt_zero_shot: str, num_shots: int):
         """
         This function creates the Prompt ABSA few-shots based on the Prompt ABSA zero-shot.
-        The reviews were selected manually from base step_4_1__base_selecao_de_prompts.csv, considering good and bad reviews 
+        The reviews were selected manually from base step_4_1__base_for_prompts_selection.csv, considering good and bad reviews 
         for 4 main styles of beer, by experienced reviweres, and 2 reviews from newbies
         Parameters:
             self (object): The object instance that contains the data.
