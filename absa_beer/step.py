@@ -1,7 +1,8 @@
 import os
 import dotenv
 import pandas as pd
-
+import re
+import unicodedata
 
 class Step:
 
@@ -79,7 +80,7 @@ class Step:
 
     def clean_json_string(self, json_string):
         cleaned_string = json_string.replace('\t', ' ')
-        translation_table = str.maketrans('', '', "[]\"{}")
+        translation_table = str.maketrans('', '', "[]\"{}\'\`")
         cleaned_string = cleaned_string.translate(translation_table)
         # Here we use a regex to remove non-printable characters
         # cleaned_string = re.sub(r'[^\x20-\x7E]', '', cleaned_string)
