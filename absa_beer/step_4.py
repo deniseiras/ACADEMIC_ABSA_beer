@@ -23,8 +23,9 @@ class Step_4(Step):
     def run(self):
         """
         This function runs Step 4 of the Aspect-Based Sentiment Analysis of Beer Characteristics.
-        It reads the csv file containing the reviews for the previous step, and then creates the 
-        "Base Prompts" and the prompts for the Aspect-Based Sentiment Analysis of Beer Characteristics.
+        It reads the step_3.csv (Base Principal) containing the reviews for the previous step, and then creates the 
+        "Base Prompts", used to test models and nshots by testing different prompts. Finally, runs the best prompt in
+        the entire Base (Base Principal)
 
         Args:
                 self (object): The object instance that contains the data.
@@ -36,13 +37,16 @@ class Step_4(Step):
         file = f'{self.work_dir}/step_3.csv'
         self.read_csv(file)
         
-        # Create "Base Selecao de Prompts" for creating one and few shot prompts based on step_3.csv
-        df_selecao_prompts = self.run_step_4_1_base_selecao_prompts()
-        print(df_selecao_prompts.describe())
+        # # Create "Base Selecao de Prompts" for creating one and few shot prompts based on step_3.csv
+        # df_selecao_prompts = self.run_step_4_1_base_selecao_prompts()
+        # print(df_selecao_prompts.describe())
         
-        # create "Base Prompts", used to test models and nshots
-        df_base_prompts = self.run_step_4_1_base_prompts(df_selecao_prompts)
-        print(df_base_prompts.describe())
+        # # create "Base Prompts", used to test models and nshots
+        # df_base_prompts = self.run_step_4_1_base_prompts(df_selecao_prompts)
+        # print(df_base_prompts.describe())
+        
+        # # do ABSA in Base Prompts for n shots and models, to select the best combination
+        # self.run_step_4_2_ABSA_select_model_shots(df_base_prompts)
         
         # TODO: remove registers used in bases for testing prompts.  remove example reviews in few shot prompts. Bug below,
         # it makes nan in values when reading df_base_principal
@@ -51,16 +55,14 @@ class Step_4(Step):
         df_base_principal = self.df
         print(f'- df_base_principal - line count: {len(df_base_principal)}')
         
-        # do ABSA in Base Prompts for n shots and models, to select the best combination
-        # self.run_step_4_2_ABSA_select_model_shots(df_base_prompts)
-        
         # do ABSA for real with the best combination of models and shots
         self.run_step_4_3_evaluate_base_principal(df_base_principal)
+
         
     def run_step_4_1_base_prompts(self, reviews_for_prompts_df: pd.DataFrame):
         """
         This function selects reviews for Prompt ABSA based on certain criteria.
-        Creates the "Base Prompts" base, for using in prompts one and few shots.
+        Creates the "Base Prompts" base, for testing prompts zero, one and few shots.
         Parameters:
             self (object): The object instance that contains the data.
         Returns:
@@ -134,7 +136,7 @@ class Step_4(Step):
 
     def run_step_4_2_ABSA_select_model_shots(self, base_prompts_df):
 
-        reviews_per_request = 1
+        reviews_per_request = 20
 
         for model in ['sabia-3', 'gpt-4o-mini']:
             for nshots in [1, 3]:
@@ -145,11 +147,12 @@ class Step_4(Step):
             
         best_model = 'sabia-3'
         best_nshots = 1
-        num_reviews_to_process = 20
+        num_reviews_to_process = 1000
         reviews_per_request = 20
         self.run_ABSA('step_4_3', df_base_principal, best_model, best_nshots, 
                       reviews_per_request=reviews_per_request, num_reviews_to_process=num_reviews_to_process)
-
+        
+        print("Please, copy the best file of combination of this step to step_4.csv")
             
     def run_ABSA(self, step_name, df_base, model, nshots, reviews_per_request = 10, num_reviews_to_process = 10):
 
@@ -162,7 +165,7 @@ class Step_4(Step):
         else:
             prompt_n_shot = self.step_4_1_get_prompt_few_shots(prompt_zero, nshots)
         
-        print(f'Running {nshots} shots task with {model} model...')
+        print(f'Running {step_name} with model {model} and {nshots} shots ...')
         review_eval_count = 1
         reviews_comments = ''
         response_columns = ['index', 'aspect', 'category', 'sentiment']
@@ -170,7 +173,7 @@ class Step_4(Step):
         n_shot_file_name = f'{self.work_dir}/{step_name}__{nshots}shots_{model}_{reviews_per_request}rev_per_req.csv'
         
         df_response.to_csv(n_shot_file_name, index=False, header=True)
-        
+        error_count = 0
         for i_general in range(i_initial_eval_index, i_final_eval_index):
             line = df_base.iloc[i_general]
             
@@ -184,7 +187,9 @@ class Step_4(Step):
                 response, finish_reason = prompt_ai.get_completion()
                 if finish_reason != 'stop':
                     print(f'Finish reason not expected: {finish_reason}')
-                    exit(-1)
+                    error_count += 1
+                    print(f'Error count: {error_count}')
+                    continue
                 try:
                     # replaces fixes for zero shot
                     response = response.strip()
@@ -208,7 +213,9 @@ class Step_4(Step):
                 except Exception as e:
                     print(f'\n\nException:{e}')
                     print(f'\nError creating df: Check:\n {response}')
-                    exit(-1)
+                    error_count += 1
+                    print(f'Error count: {error_count}')
+                    continue
 
                 review_eval_count = 0
                 reviews_comments = ''
