@@ -126,8 +126,8 @@ portuguesa que citam pelo menos uma característica de cerveja. Você não faz c
         step3_df = self.df.drop(df_reviews_not_selected['index'].astype(int).tolist())
         
         # TODO Drop not processed indexes
-        step3_df.reset_index(drop=True, inplace=True)
         
-        step3_df.to_csv(f'{self.work_dir}/step_3.csv', index=False)
+        step3_df.reset_index(drop=True, inplace=True)
+        step3_df.to_csv(f'{self.work_dir}/step_3.csv', index=True)
             
 
