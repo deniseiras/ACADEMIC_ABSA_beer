@@ -8,10 +8,14 @@ Functions:
 """
 
 import pandas as pd
-import ast
 from step import Step
-from Prompt_AI import Prompt_AI
 import re
+import pandas as pd
+from collections import Counter
+import re
+from wordcloud import WordCloud
+from matplotlib.colors import to_hex
+
 
 class Step_6(Step):
 
@@ -50,10 +54,10 @@ class Step_6(Step):
         print(f'- Base ABSA      - line count: {len(df_base_absa)}')
         print(f'- Base Joined    - line count: {len(df_absa_join)}')
         
-        df_aroma_pos, df_aroma_neg = self.create_base(df_absa_join, 'review_aroma', 'aroma')
-        df_visual_pos, df_visual_neg = self.create_base(df_absa_join, 'review_visual', 'visual')
-        df_flavor_pos, df_flavor_neg = self.create_base(df_absa_join, 'review_flavor', 'sabor')
-        df_sensation_pos, df_sensation_neg = self.create_base(df_absa_join, 'review_sensation', 'sensação na boca')
+        # df_aroma_pos, df_aroma_neg = self.create_base(df_absa_join, 'review_aroma', 'aroma')
+        # df_visual_pos, df_visual_neg = self.create_base(df_absa_join, 'review_visual', 'visual')
+        # df_flavor_pos, df_flavor_neg = self.create_base(df_absa_join, 'review_flavor', 'sabor')
+        # df_sensation_pos, df_sensation_neg = self.create_base(df_absa_join, 'review_sensation', 'sensação na boca')
         df_general_set_pos, df_general_set_neg = self.create_base(df_absa_join, 'review_general_set', None)
         
         stop_words = self.get_stop_words()
@@ -65,8 +69,8 @@ class Step_6(Step):
         # self.generate_word_cloud(df_flavor_neg, 'flavor_neg', stop_words)
         # self.generate_word_cloud(df_sensation_pos, 'sensation_pos', stop_words)
         # self.generate_word_cloud(df_sensation_neg, 'sensation_neg', stop_words)
-        self.generate_word_cloud(df_general_set_pos, 'general_set_pos', stop_words)
-        self.generate_word_cloud(df_general_set_neg, 'general_set_neg', stop_words)
+        self.generate_word_cloud(df_general_set_pos, 'general_set_pos', stop_words, categories, max_words=100)
+        self.generate_word_cloud(df_general_set_neg, 'general_set_neg', stop_words, categories, max_words=100)
 
 
     def create_base(self, df_absa_join, column: str, category: str ):
@@ -124,16 +128,8 @@ class Step_6(Step):
         return stop_words
     
         
-    def generate_word_cloud(self, df: pd.DataFrame, base_name: str, stop_words: list, max_words=50):
+    def generate_word_cloud(self, df: pd.DataFrame, base_name: str, stop_words: list, categories: list, max_words=50):
         
-        import pandas as pd
-        from collections import Counter
-        import re
-        from wordcloud import WordCloud
-        import matplotlib.pyplot as plt
-        from matplotlib.colors import rgb2hex  # For converting RGB to HEX
-        from matplotlib.pyplot import get_cmap  # Correct import for get_cmap
-
         # Function to clean and extract words/entities
         def extract_entities(text, split_words=False):
             text = text.lower()
@@ -150,10 +146,20 @@ class Step_6(Step):
             word_category = word_category_mapping.get(word, 'default')
             return category_colors.get(word_category, 'black')
 
-        # Create a list of unique categories and assign a color to each
-        categories = df['category'].unique()
-        cmap = get_cmap('tab10', len(categories))  # Get a colormap with enough colors for each category
-        category_colors = {category: rgb2hex(cmap(i)) for i, category in enumerate(categories)}
+        # # Create a list of unique categories and assign a color to each
+        # cmap = get_cmap('tab10', len(categories))  # Get a colormap with enough colors for each category
+        # category_colors = {category: rgb2hex(cmap(i)) for i, category in enumerate(categories)}
+        
+        category_colors = {
+            "visual": "Blue",
+            "aroma": "Orange",
+            "sabor": "Green",
+            "sensação na boca": "Red",
+            "álcool": "Magenta",
+            "amargor": "Lime"
+        }
+        # Convert the color names to hex codes
+        category_colors_hex = {category: to_hex(color) for category, color in category_colors.items()}
 
         # Create a mapping between words and their corresponding category
         word_category_mapping = {}
