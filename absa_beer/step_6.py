@@ -69,8 +69,8 @@ class Step_6(Step):
         # self.generate_word_cloud(df_flavor_neg, 'flavor_neg', stop_words)
         # self.generate_word_cloud(df_sensation_pos, 'sensation_pos', stop_words)
         # self.generate_word_cloud(df_sensation_neg, 'sensation_neg', stop_words)
-        self.generate_word_cloud(df_general_set_pos, 'general_set_pos', stop_words, categories, max_words=100)
-        self.generate_word_cloud(df_general_set_neg, 'general_set_neg', stop_words, categories, max_words=100)
+        self.generate_word_cloud(df_general_set_pos, 'general_set_pos', stop_words, categories, max_words=75, split_words=False)
+        self.generate_word_cloud(df_general_set_neg, 'general_set_neg', stop_words, categories, max_words=75, split_words=False)
 
 
     def create_base(self, df_absa_join, column: str, category: str ):
@@ -122,16 +122,21 @@ class Step_6(Step):
         # Define stop words (Portuguese)
         nltk.download('stopwords')
         stop_words = set(stopwords.words('portuguese'))
-        stop_words.update(['aroma', 'sabor', 'notas', 'muito boa', 'excelente', 'ótima','boa', 'ruim', 'gostei', 'não gostei', 'não me agradaram muito'])
+        stop_words.update(['aroma', 'sabor', 'notas', 'muito boa', 'excelente', 'ótima','boa', 'ruim', 'gostei', 
+            'eu particularmente não gostei', 'não gostei', 'não me agradaram muito', 'me decepcionou', 'não é ruim', 'é muito bom', 
+            'não é muito bom', 'não é muito boa' 'é ruim', 'é muito ruim', 'não é muito ruim', 'não é bom', 'não é boa' 'é bom',
+            'adorei', 'gostosa', 'agradável', 'esperava um pouco mais', 'esperava muito mais', 'custo benefício ruim', 'é meio estranha',
+            'notas fortes', 'não empolga', 'cerveja bem mediana' 'cheiro apagado'])
+        print(stop_words)
        
         # print(stop_words)
         return stop_words
     
         
-    def generate_word_cloud(self, df: pd.DataFrame, base_name: str, stop_words: list, categories: list, max_words=50):
+    def generate_word_cloud(self, df: pd.DataFrame, base_name: str, stop_words: list, categories: list, max_words=50, split_words=False):
         
         # Function to clean and extract words/entities
-        def extract_entities(text, split_words=False):
+        def extract_entities(text, split_words=split_words):
             text = text.lower()
             text = re.sub(r'[^a-zà-ÿ\s,]', '', text)
             if split_words:
@@ -178,10 +183,10 @@ class Step_6(Step):
             print(f"{category}: {count} words")
 
         # Create a WordCloud with color function
-        wordcloud = WordCloud(width=800, height=400, background_color='white', max_words=max_words, color_func=color_func).generate_from_frequencies(word_count)
+        wordcloud = WordCloud(width=1600, height=800, background_color='white', max_words=max_words, color_func=color_func).generate_from_frequencies(word_count)
 
         # Save the word cloud image
-        wordcloud_filename = f'{self.work_dir}/wordcloud_{base_name}_{max_words}_words.png'
+        wordcloud_filename = f'{self.work_dir}/wordcloud_{base_name}_{max_words}_words{"_split_words" if split_words else ""}.png'
         wordcloud.to_file(wordcloud_filename)
 
         # # Optionally show the WordCloud
