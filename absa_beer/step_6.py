@@ -54,16 +54,17 @@ class Step_6(Step):
         df_sensation_pos, df_sensation_neg = self.create_base(df_absa_join, 'review_sensation', 'sensação na boca')
         df_general_set_pos, df_general_set_neg = self.create_base(df_absa_join, 'review_general_set', None)
         
-        self.generate_word_cloud(df_aroma_pos, 'aroma_pos')
-        self.generate_word_cloud(df_aroma_neg, 'aroma_neg')
-        self.generate_word_cloud(df_visual_pos, 'visual_pos')
-        self.generate_word_cloud(df_visual_neg, 'visual_neg')
-        self.generate_word_cloud(df_flavor_pos, 'flavor_pos')
-        self.generate_word_cloud(df_flavor_neg, 'flavor_neg')
-        self.generate_word_cloud(df_sensation_pos, 'sensation_pos')
-        self.generate_word_cloud(df_sensation_neg, 'sensation_neg')
-        self.generate_word_cloud(df_general_set_pos, 'general_set_pos')        
-        self.generate_word_cloud(df_general_set_neg, 'general_set_neg')
+        stop_words = self.get_stop_words()
+        # self.generate_word_cloud(df_aroma_pos, 'aroma_pos', stop_words)
+        # self.generate_word_cloud(df_aroma_neg, 'aroma_neg', stop_words)
+        # self.generate_word_cloud(df_visual_pos, 'visual_pos', stop_words)
+        # self.generate_word_cloud(df_visual_neg, 'visual_neg', stop_words)
+        # self.generate_word_cloud(df_flavor_pos, 'flavor_pos', stop_words)
+        # self.generate_word_cloud(df_flavor_neg, 'flavor_neg', stop_words)
+        # self.generate_word_cloud(df_sensation_pos, 'sensation_pos', stop_words)
+        # self.generate_word_cloud(df_sensation_neg, 'sensation_neg', stop_words)
+        self.generate_word_cloud(df_general_set_pos, 'general_set_pos', stop_words)
+        self.generate_word_cloud(df_general_set_neg, 'general_set_neg', stop_words)
 
 
     def create_base(self, df_absa_join, column: str, category: str ):
@@ -73,8 +74,8 @@ class Step_6(Step):
         Args:
                 df_absa_join (DataFrame): The dataframe with ABSA sentiments
         """
-        pos_thres = 3.0
-        neg_thres = 2.0
+        pos_thres = 0.0  # 0.0 ignore rating 
+        neg_thres = 5.0  # 5.0 ignore rating
         print(column.capitalize())
         df_absa_join_rev_pos = df_absa_join[df_absa_join[column] >= pos_thres]
         df_absa_join_rev_neg = df_absa_join[df_absa_join[column] <= neg_thres]
@@ -115,49 +116,67 @@ class Step_6(Step):
         # Define stop words (Portuguese)
         nltk.download('stopwords')
         stop_words = set(stopwords.words('portuguese'))
-        stop_words.update(['aroma', 'sabor', 'notas'])
+        stop_words.update(['aroma', 'sabor', 'notas', 'muito boa', 'excelente', 'ótima','boa', 'ruim', 'gostei', 'não gostei', 'não me agradaram muito'])
        
-        print(stop_words)
+        # print(stop_words)
         return stop_words
+    
         
-    def generate_word_cloud(self, df: pd.DataFrame, base_name: str):
+    def generate_word_cloud(self, df: pd.DataFrame, base_name: str, stop_words: list, max_words=50):
         
         import pandas as pd
         from collections import Counter
         import re
         from wordcloud import WordCloud
         import matplotlib.pyplot as plt
-        
-        stop_words = self.get_stop_words()
-        
+        from matplotlib.colors import rgb2hex  # For converting RGB to HEX
+        from matplotlib.pyplot import get_cmap  # Correct import for get_cmap
+
         # Function to clean and extract words/entities
-        def extract_entities(text):
-            # Convert to lowercase
+        def extract_entities(text, split_words=False):
             text = text.lower()
-            # Remove non-alphabetic characters
             text = re.sub(r'[^a-zà-ÿ\s,]', '', text)
-            # Split by commas and spaces, and strip whitespace
-            words = re.split(r'[,\s]+', text)
-            # Remove stop words and empty strings
-            words = [word.strip() for word in words if word.strip() and word not in stop_words]
+            if split_words:
+                words = re.split(r'[,\s]+', text)
+                words = [word.strip() for word in words if word.strip() and word not in stop_words]
+            else:
+                words = [text] if text not in stop_words else []
             return words
 
+        # Function to map category to a color
+        def color_func(word, font_size, position, orientation, random_state=None, **kwargs):
+            word_category = word_category_mapping.get(word, 'default')
+            return category_colors.get(word_category, 'black')
+
+        # Create a list of unique categories and assign a color to each
+        categories = df['category'].unique()
+        cmap = get_cmap('tab10', len(categories))  # Get a colormap with enough colors for each category
+        category_colors = {category: rgb2hex(cmap(i)) for i, category in enumerate(categories)}
+
+        # Create a mapping between words and their corresponding category
+        word_category_mapping = {}
+        for index, row in df.iterrows():
+            words = extract_entities(row['aspect'])
+            for word in words:
+                word_category_mapping[word] = row['category']
+
         # Apply extraction and count words
-        word_list = df['aspect'].apply(extract_entities).sum()  # Flatten the list
+        word_list = df['aspect'].apply(extract_entities).sum()
         word_count = Counter(word_list)
+        
+        category_word_count = Counter(word_category_mapping.values())
+        print(f'Number of words per category for {base_name}:')
+        for category, count in category_word_count.items():
+            print(f"{category}: {count} words")
 
-        # Print word counts
-        print(len(word_count))
-        print(word_count)
+        # Create a WordCloud with color function
+        wordcloud = WordCloud(width=800, height=400, background_color='white', max_words=max_words, color_func=color_func).generate_from_frequencies(word_count)
 
-        # Create a WordCloud
-        wordcloud = WordCloud(width=800, height=400, background_color='white', max_words=50).generate_from_frequencies(word_count)
-        wordcloud_filename = f'{self.work_dir}/wordcloud_{base_name}.png'
+        # Save the word cloud image
+        wordcloud_filename = f'{self.work_dir}/wordcloud_{base_name}_{max_words}_words.png'
         wordcloud.to_file(wordcloud_filename)
-        print(f"Word cloud saved as {wordcloud_filename}")
-                
-                
 
-                
-
-                
+        # # Optionally show the WordCloud
+        # plt.imshow(wordcloud, interpolation='bilinear')
+        # plt.axis('off')
+        # plt.show()
