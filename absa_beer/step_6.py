@@ -34,6 +34,8 @@ class Step_6(Step):
         
         self.read_csv(f'{self.work_dir}/step_4.csv')
         df_base_absa = self.df
+        categories = ["visual", "aroma", "sabor", "álcool", "amargor", "sensação na boca"]
+        df_base_absa = df_base_absa[df_base_absa['category'].isin(categories)]
 
         self.read_csv(f'{self.work_dir}/step_3.csv')
         df_base_principal = self.df       
