@@ -43,24 +43,31 @@ class Step_6(Step):
 
         self.read_csv(f'{self.work_dir}/step_3.csv')
         df_base_principal = self.df       
+        
+        self.read_csv(f'{self.work_dir}/step_5.csv')
+        df_base_as = self.df 
+        df_base_as = df_base_as.rename(columns={'sentiment': 'sentiment_as'})
 
         # Create a base joining df_base_principal and df_base_absa where df_base_principal review_general_set >= 4 and df_base_absa "sentiment" is "positivo" ou "muito positivo"
-        df_base_principal_interested_columns = df_base_principal[['index', 'review_comment', 'review_datetime', 'beer_style', 'review_general_rate', 
+        df_base_asba_interested_columns = df_base_principal[['index', 'review_comment', 'review_datetime', 'beer_style', 'review_general_rate', 
             'review_aroma', 'review_visual', 'review_flavor', 'review_sensation', 'review_general_set']]
-        df_absa_join = df_base_principal_interested_columns.join(df_base_absa.set_index('index'), on='index', how='inner')
-        df_absa_join.to_csv(f'{self.work_dir}/step_6_join_ABSA-PRINCIPAL.csv', index=False)
+        df_absa_as_join = df_base_asba_interested_columns.join(df_base_absa.set_index('index'), on='index', how='inner')
+        df_absa_as_join = df_absa_as_join.join(df_base_as.set_index('index'), on='index', how='inner')
+        df_absa_as_join.to_csv(f'{self.work_dir}/step_6_join_ABSA-AS-PRINCIPAL.csv', index=False)
         
         print(f'- Base Principal - line count: {len(df_base_principal)}')
         print(f'- Base ABSA      - line count: {len(df_base_absa)}')
-        print(f'- Base Joined    - line count: {len(df_absa_join)}')
+        print(f'- Base Joined    - line count: {len(df_absa_as_join)}')
         
-        df_aroma_pos, df_aroma_neg = self.create_base(df_absa_join, 'aroma')
-        df_visual_pos, df_visual_neg = self.create_base(df_absa_join, 'visual')
-        df_flavor_pos, df_flavor_neg = self.create_base(df_absa_join, 'sabor')
-        df_sensation_pos, df_sensation_neg = self.create_base(df_absa_join, 'sensação na boca')
+        df_aroma_pos, df_aroma_neg = self.create_base(df_absa_as_join, 'aroma')
+        df_visual_pos, df_visual_neg = self.create_base(df_absa_as_join, 'visual')
+        df_flavor_pos, df_flavor_neg = self.create_base(df_absa_as_join, 'sabor')
+        df_sensation_pos, df_sensation_neg = self.create_base(df_absa_as_join, 'sensação na boca')
+        df_amargor_pos, df_amargor_neg = self.create_base(df_absa_as_join, 'amargor')
+        df_alcool_pos, df_alcool_neg = self.create_base(df_absa_as_join, 'álcool')
         
         # include all categories, also alcool, amargor
-        df_all_cats_pos, df_all_cats_neg = self.create_base(df_absa_join)
+        df_all_cats_pos, df_all_cats_neg = self.create_base(df_absa_as_join)
         
         stop_words = self.get_stop_words()
         max_words = 75
@@ -73,6 +80,10 @@ class Step_6(Step):
         self.generate_word_cloud(df_flavor_neg, 'flavor_neg', stop_words, categories, max_words=max_words, split_words=split_words)
         self.generate_word_cloud(df_sensation_pos, 'sensation_pos', stop_words, categories, max_words=max_words, split_words=split_words)
         self.generate_word_cloud(df_sensation_neg, 'sensation_neg', stop_words, categories, max_words=max_words, split_words=split_words)
+        self.generate_word_cloud(df_amargor_pos, 'amargor_pos', stop_words, categories, max_words=max_words, split_words=split_words)
+        self.generate_word_cloud(df_amargor_neg, 'amargor_neg', stop_words, categories, max_words=max_words, split_words=split_words)
+        self.generate_word_cloud(df_alcool_pos, 'alcool_pos', stop_words, categories, max_words=max_words, split_words=split_words)
+        self.generate_word_cloud(df_alcool_neg, 'alcool_neg', stop_words, categories, max_words=max_words, split_words=split_words)
         
         self.generate_word_cloud(df_all_cats_pos, 'all_cats_pos', stop_words, categories, max_words=max_words, split_words=split_words)
         self.generate_word_cloud(df_all_cats_neg, 'all_cats_neg', stop_words, categories, max_words=max_words, split_words=split_words)
@@ -101,7 +112,7 @@ class Step_6(Step):
         if category is not None:
             df_absa_join_absa_pos = df_absa_join_absa_pos[df_absa_join_absa_pos['category'] == category]
             df_absa_join_absa_neg = df_absa_join_absa_neg[df_absa_join_absa_neg['category'] == category]
-        print(f'- ABSA            POS / NEG: {len(df_absa_join_absa_pos)} / {len(df_absa_join_absa_neg)}')
+        print(f'- ABSA of {category} count:  POS / NEG: {len(df_absa_join_absa_pos)} / {len(df_absa_join_absa_neg)}')
         
         # Not using thresholds anymore
         #
@@ -119,7 +130,7 @@ class Step_6(Step):
         
         df_pos = df_absa_join_absa_pos
         df_neg = df_absa_join_absa_neg
-        print(f'- Reviews & ABSA  POS / NEG: {len(df_pos)} / {len(df_neg)}')
+        # print(f'- Reviews & ABSA  POS / NEG: {len(df_pos)} / {len(df_neg)}')
         
         if category is None:
             categ_str = 'all_cats'
