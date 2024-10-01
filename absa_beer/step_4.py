@@ -146,7 +146,7 @@ class Step_4(Step):
             
         best_model = 'sabia-3'
         best_nshots = 1
-        num_reviews_to_process = None
+        num_reviews_to_process = 10e6
         reviews_per_request = 10
         is_num_shots_for_each_CC = False
         self.run_ABSA('step_4_3', df_base_principal, best_model, best_nshots, 
