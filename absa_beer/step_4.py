@@ -38,23 +38,20 @@ class Step_4(Step):
         self.read_csv(file)
         
         # # Create "Base Selecao de Prompts" for creating one and few shot prompts based on step_3.csv
-        # df_selecao_prompts = self.run_step_4_1_base_selecao_prompts()
-        # print(df_selecao_prompts.describe())
+        df_selecao_prompts = self.run_step_4_1_base_selecao_prompts()
+        print(df_selecao_prompts.describe())
         
         # # create "Base Prompts", used to test models and nshots
-        # df_base_prompts = self.run_step_4_1_base_prompts(df_selecao_prompts)
-        # print(df_base_prompts.describe())
+        df_base_prompts = self.run_step_4_1_base_prompts(df_selecao_prompts)
+        print(df_base_prompts.describe())
         
-        # # do ABSA in Base Prompts for n shots and models, to select the best combination
-        # self.run_step_4_2_ABSA_select_model_shots(df_base_prompts)
+        # do ABSA in Base Prompts for n shots and models, to select the best combination
+        self.run_step_4_2_ABSA_select_model_shots(df_base_prompts)
         
-        # TODO: remove registers used in bases for testing prompts.  remove example reviews in few shot prompts. Bug below,
-        # it makes nan in values when reading df_base_principal
-        # print(f'- Removing registers from df_base_principal - Initial line count: {len(self.df)}')
-        # df_base_principal = self.df[~self.df.isin(df_base_prompts)]
+        
         df_base_principal = self.df
         print(f'- df_base_principal - line count: {len(df_base_principal)}')
-        
+       
         # do ABSA for real with the best combination of models and shots
         self.run_step_4_3_evaluate_base_principal(df_base_principal)
 
@@ -137,24 +134,28 @@ class Step_4(Step):
     def run_step_4_2_ABSA_select_model_shots(self, base_prompts_df):
 
         reviews_per_request = 20
+        is_for_each_CC = True
 
         for model in ['sabia-3', 'gpt-4o-mini']:
+            # for is_num_shots_for_each_CC in [True, False]:
             for nshots in [1, 3]:
+                self.run_ABSA('step_4_2', base_prompts_df, model, nshots, reviews_per_request, is_num_shots_for_each_CC = is_for_each_CC)
                 
-                self.run_ABSA('step_4_2', base_prompts_df, model, nshots, reviews_per_request)
                 
     def run_step_4_3_evaluate_base_principal(self, df_base_principal):
             
         best_model = 'sabia-3'
         best_nshots = 1
-        num_reviews_to_process = 1000
-        reviews_per_request = 20
+        num_reviews_to_process = None
+        reviews_per_request = 10
+        is_num_shots_for_each_CC = False
         self.run_ABSA('step_4_3', df_base_principal, best_model, best_nshots, 
-                      reviews_per_request=reviews_per_request, num_reviews_to_process=num_reviews_to_process)
+                      reviews_per_request=reviews_per_request, num_reviews_to_process=num_reviews_to_process, is_num_shots_for_each_CC = is_num_shots_for_each_CC)
         
         print("Please, copy the best file of combination of this step to step_4.csv")
+       
             
-    def run_ABSA(self, step_name, df_base, model, nshots, reviews_per_request = 10, num_reviews_to_process = 10):
+    def run_ABSA(self, step_name, df_base, model, nshots, reviews_per_request = 10, num_reviews_to_process = None, is_num_shots_for_each_CC = False):
 
         i_initial_eval_index = 0  # 0 in from begining, otherwise index of last processed element + 1
         i_final_eval_index = min(num_reviews_to_process, len(df_base))
@@ -163,14 +164,14 @@ class Step_4(Step):
         if nshots == 0:
             prompt_n_shot = prompt_zero
         else:
-            prompt_n_shot = self.step_4_1_get_prompt_few_shots(prompt_zero, nshots)
+            prompt_n_shot = self.step_4_1_get_prompt_few_shots(prompt_zero, nshots, is_num_shots_for_each_CC)
         
         print(f'Running {step_name} with model {model} and {nshots} shots ...')
         review_eval_count = 1
         reviews_comments = ''
         response_columns = ['index', 'aspect', 'category', 'sentiment']
         df_response = pd.DataFrame(columns=response_columns)
-        n_shot_file_name = f'{self.work_dir}/{step_name}__{nshots}shots_{model}_{reviews_per_request}rev_per_req.csv'
+        n_shot_file_name = f'{self.work_dir}/{step_name}__{nshots}shots_{model}_{"per_CC" if is_num_shots_for_each_CC else ""}_{reviews_per_request}rev_per_req_from_{i_initial_eval_index}.csv'
         
         df_response.to_csv(n_shot_file_name, index=False, header=True)
         error_count = 0
@@ -184,6 +185,10 @@ class Step_4(Step):
             if review_eval_count == reviews_per_request or i_general == i_final_eval_index-1:
                 # TODO - using prompt_sys in second argument makes the output json return without "[ ]"
                 prompt_ai = Prompt_AI(model, f'{prompt_n_shot} {reviews_comments} ')
+                
+                review_eval_count = 0
+                reviews_comments = ''
+                
                 response, finish_reason = prompt_ai.get_completion()
                 if finish_reason != 'stop':
                     print(f'Finish reason not expected: {finish_reason}')
@@ -193,13 +198,20 @@ class Step_4(Step):
                 try:
                     # replaces fixes for zero shot
                     response = response.strip()
+                    
+                    # fix for sabia-3 alucination with "[[[" in begining
+                    # pattern = r'^[\s]*\[\s*\[\s*\['
+                    # response = re.sub(pattern, '[[',response)
+                    
                     # fix for sabia-3 alucination with "]],[" each review
                     pattern = r'\]\s*[\r\n]*\]\s*[\r\n]*,\s*[\r\n]*\[\s*[\r\n]*'
                     response = re.sub(pattern, '],',response)
-                    # fix for '[' at the beginning and end if not present already
-                    match = re.search(r'^\[\s*[\r\n]*\[', response)
+                    
+                    # fix for alucination where not exists '[[' at the beginning and ']]' at the end
+                    match = re.search(r'^(\s*[\r\n]*\[\s*[\r\n]*\[)', response)
                     if not match:
                         response = f'[{response}]'
+                    
                     # fix for gpt allucionations
                     response = response.replace('```json', '')
                     response = response.replace('```', '')
@@ -217,8 +229,6 @@ class Step_4(Step):
                     print(f'Error count: {error_count}')
                     continue
 
-                review_eval_count = 0
-                reviews_comments = ''
                 # WARNING if it was processed all data - due to limitations of request size
                 # or some data not processed due (empty response)
                 if len(df_new) < reviews_per_request and i_general != i_final_eval_index-1:
@@ -227,6 +237,7 @@ class Step_4(Step):
         
             review_eval_count += 1
         
+        print(f'TOTAL Error count: {error_count}')
         # finally, sort to check responses and save all the results
         df_response['index'] = df_response['index'].astype(int)
         df_response = df_response.sort_values(by=['index', 'aspect'])
@@ -244,7 +255,7 @@ Não faça comentários, apenas gere a saída dos campos extraídos no formato a
 """
         return prompt_sys
 
-    def step_4_1_get_prompt_few_shots(self, prompt_zero_shot: str, num_shots: int):
+    def step_4_1_get_prompt_few_shots(self, prompt_zero_shot: str, num_shots: int, is_num_shots_for_each_CC: bool = False):
         """
         This function creates the Prompt ABSA few-shots based on the Prompt ABSA zero-shot.
         The reviews were selected manually from base step_4_1__base_for_prompts_selection.csv, considering good and bad reviews 
@@ -525,6 +536,7 @@ que degustei. Pergunto: é uma IPA ou é uma American Pale Ale lupulada em exces
 "
 """
 
+
         #
         # - inexperienced - high rate
         # Odonio dos Anjos Filho	1	4,7	
@@ -634,29 +646,60 @@ harmonia. Parabéns aos envolvidos! ???? \
 Abaixo, entre aspas, exemplos de textos de avaliações e o resultado esperado. \
 Ignore o valor do campo index dos exemplos, pois são apenas para mostrar o formato de saída.
 """
-        
-        if num_shots == 1:
-            prompt_few_shots += style3_inexp_lowrate
-        
-        elif num_shots == 3:
-            prompt_few_shots += style3_inexp_lowrate
+   
+        if not is_num_shots_for_each_CC:
+            if num_shots == 1:
+                prompt_few_shots += style3_inexp_lowrate
             
-            prompt_few_shots += style1_exp_lowrate
-            prompt_few_shots += style2_exp_highrate
-        elif num_shots == 10:
-            prompt_few_shots += style3_inexp_lowrate
-            
-            prompt_few_shots += style1_exp_lowrate
-            prompt_few_shots += style1_exp_highrate
-            prompt_few_shots += style2_exp_lowrate
-            prompt_few_shots += style2_exp_highrate
-            prompt_few_shots += style3_exp_lowrate
-            prompt_few_shots += style3_exp_highrate
-            prompt_few_shots += style3_inexp_highrate
-            prompt_few_shots += style4_exp_lowrate
-            prompt_few_shots += style4_exp_highrate
+            elif num_shots == 3:
+                prompt_few_shots += style3_inexp_lowrate
+                
+                prompt_few_shots += style1_exp_lowrate
+                prompt_few_shots += style2_exp_highrate
+            elif num_shots == 10:
+                prompt_few_shots += style3_inexp_lowrate
+                
+                prompt_few_shots += style1_exp_lowrate
+                prompt_few_shots += style1_exp_highrate
+                prompt_few_shots += style2_exp_lowrate
+                prompt_few_shots += style2_exp_highrate
+                prompt_few_shots += style3_exp_lowrate
+                prompt_few_shots += style3_exp_highrate
+                prompt_few_shots += style3_inexp_highrate
+                prompt_few_shots += style4_exp_lowrate
+                prompt_few_shots += style4_exp_highrate
+
+        else:
+            #  ONE SHOT EXAMPLE 1 CC !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        
+            # - inexperienced - low rate
+            # Thiago Coelho	1	1,5	
+            style3_inexp_lowrate_1_CC = """
+"Rótulo agradável, em garrafa âmbar bojuda. Tampa sem rótulo, dando um aspecto desleixado à cerveja. As cervejas bastante lupuladas sempre têm uma agradável \
+antecipação do aroma logo quando se abre a garrafa. Essa não tinha: mau presságio... Cor âmbar, translúcida,excelente sensação visual ao ser servida, particularmente \
+pela intensa formação de espuma, que é persistente. Aroma herbáceo, suave demais,muito aquém para uma cerveja que carrega no lúpulo aromático, inclusive tendo sido  \
+feito dry hopping com Cascade, um lúpulo essencialmente aromático . Se a intenção era fazer uma autêntica American IPA, vê-se aqui mais pra uma do velho continente,  \
+inglesa, precisamente. No sabor,perde-se completamente: tem um amargor intenso mas adstringente, incomodativo, que parece mesmo arranhar a língua e que perdura no  \
+aftertaste.Baixíssima drinkability. Vê-se muito malte, particularmente no aftertaste, quando se mantém um retrogosto de mel e pão. Não vi qualquer off-flavor no exemplar \
+que degustei. Pergunto: é uma IPA ou é uma American Pale Ale lupulada em excesso (amargor excessivo, por ser incomodativo...)? 
+"""
+
+            if num_shots == 1:
+                prompt_few_shots += style3_inexp_lowrate_1_CC
+                prompt_few_shots += """\
+['0', 'cor do líquido âmbar', 'visual', 'neutro'], \
+"
+"""
+            elif num_shots == 3:
+                prompt_few_shots += style3_inexp_lowrate_1_CC
+                prompt_few_shots += """\
+['0', 'cor do líquido âmbar', 'visual', 'neutro'], \
+['0', 'líquido translúcido', 'visual', 'neutro'], \
+['0', 'formação de espuma ótima', 'visual', 'muito positivo'] \
+"
+"""
     
-        
+       
         # not used
         # prompt_few_shots += style1_inexp_lowrate
         # prompt_few_shots += style1_inexp_highrate
@@ -666,6 +709,5 @@ Ignore o valor do campo index dos exemplos, pois são apenas para mostrar o form
         # prompt_few_shots += style4_inexp_lowrate
         # prompt_few_shots += style4_inexp_highrate
 
-        # prompt_few_shots += "Abaixo, as avaliações a serem identificados os aspectos, categoria e sentimento."
         return prompt_few_shots
 
