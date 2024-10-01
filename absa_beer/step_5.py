@@ -47,7 +47,7 @@ class Step_5(Step):
             
         best_model = 'sabia-3'
         best_nshots = 1
-        num_reviews_to_process = 1000
+        num_reviews_to_process = 10e6
         reviews_per_request = 20
         self.run_SA('step_5', df_base_principal, best_model, best_nshots, 
                       reviews_per_request=reviews_per_request, num_reviews_to_process=num_reviews_to_process)
@@ -69,7 +69,7 @@ class Step_5(Step):
         reviews_comments = ''
         response_columns = ['index', 'sentiment']
         df_response = pd.DataFrame(columns=response_columns)
-        n_shot_file_name = f'{self.work_dir}/{step_name}__{nshots}shots_{model}_{reviews_per_request}rev_per_req.csv'
+        n_shot_file_name = f'{self.work_dir}/{step_name}__{nshots}shots_{model}_{reviews_per_request}rev_per_req_from_{i_initial_eval_index}.csv'
         
         df_response.to_csv(n_shot_file_name, index=False, header=True)
         error_count = 0
@@ -83,6 +83,10 @@ class Step_5(Step):
             if review_eval_count == reviews_per_request or i_general == i_final_eval_index-1:
                 # TODO - using prompt_sys in second argument makes the output json return without "[ ]"
                 prompt_ai = Prompt_AI(model, f'{prompt_n_shot} {reviews_comments} ')
+                
+                review_eval_count = 0
+                reviews_comments = ''
+                
                 response, finish_reason = prompt_ai.get_completion()
                 if finish_reason != 'stop':
                     print(f'Finish reason not expected: {finish_reason}')
@@ -100,9 +104,9 @@ class Step_5(Step):
                     match = re.search(r'^\[\s*[\r\n]*\[', response)
                     if not match:
                         response = f'[{response}]'
-                    # # fix for gpt allucionations - not needed GPT yet ...
-                    # response = response.replace('```json', '')
-                    # response = response.replace('```', '')
+                    # fix for gpt allucionations - not needed GPT yet ...
+                    response = response.replace('```json', '')
+                    response = response.replace('```', '')
                     
                     data_list = ast.literal_eval(response)
                     df_new = pd.DataFrame(data_list, columns=response_columns)
@@ -117,8 +121,6 @@ class Step_5(Step):
                     print(f'Error count: {error_count}')
                     continue
 
-                review_eval_count = 0
-                reviews_comments = ''
                 # WARNING if it was processed all data - due to limitations of request size
                 # or some data not processed due (empty response)
                 if len(df_new) < reviews_per_request and i_general != i_final_eval_index-1:
@@ -127,6 +129,8 @@ class Step_5(Step):
         
             review_eval_count += 1
         
+        print(f'TOTAL Error count: {error_count}')
+                
         # finally, sort to check responses and save all the results
         df_response['index'] = df_response['index'].astype(int)
         df_response = df_response.sort_values(by=['index'])
