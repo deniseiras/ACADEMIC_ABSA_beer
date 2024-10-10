@@ -359,17 +359,17 @@ class Step_6(Step):
         wordcloud.to_file(wordcloud_filename)
 
         if base_name.startswith('all_cats'):
-            self.create_legend(category_colors), base_name
+            self.create_legend(category_colors, base_name)
         
 
     def create_legend(self, colors_dict, base_name):
         # Sort the dictionary first by the number of words, then alphabetically
         sorted_colors = sorted(colors_dict.items(), key=lambda x: (len(x[0].split('_')), x[0]))
         
-        fig, ax = plt.subplots(figsize=(10, 10))
+        fig, ax = plt.subplots(figsize=(10, 40))
         # plt.subplots_adjust(left=0.2, right=0.8, top=0.99, bottom=0.01)
         
-        max_colors = 21
+        max_colors = 1000
         for i, (attribute, color) in enumerate(sorted_colors):
             # Draw the circle
             circle = plt.Circle((0.1, 0.95 - i * 0.03), 0.01, color=color, transform=ax.transAxes)
