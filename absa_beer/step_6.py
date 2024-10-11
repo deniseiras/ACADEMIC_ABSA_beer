@@ -15,7 +15,9 @@ from collections import Counter
 import re
 from wordcloud import WordCloud
 from matplotlib import pyplot as plt
-import webcolors
+from nltk.corpus import stopwords
+import nltk
+
 
 
 # if the value of the column "aspect" of df_absa_as_join have exactly two words, put the words in alphabetical order to avoid duplicates
@@ -139,8 +141,9 @@ class Step_6(Step):
         self.generate_word_cloud(df_alcool_pos, 'alcool_pos', stop_words_amar_alco, categories, max_words=max_words, split_words=split_words)
         self.generate_word_cloud(df_alcool_neg, 'alcool_neg', stop_words_amar_alco, categories, max_words=max_words, split_words=split_words)
         
-        self.generate_word_cloud(df_all_cats_pos, 'all_cats_pos', {}, categories, max_words=max_words, split_words=split_words)
-        self.generate_word_cloud(df_all_cats_neg, 'all_cats_neg', {}, categories, max_words=max_words, split_words=split_words)
+        stop_words_all_cats = self.get_stop_words_all_cats()
+        self.generate_word_cloud(df_all_cats_pos, 'all_cats_pos', stop_words_all_cats, categories, max_words=max_words, split_words=split_words)
+        self.generate_word_cloud(df_all_cats_neg, 'all_cats_neg', stop_words_all_cats, categories, max_words=max_words, split_words=split_words)
 
 
     def create_base(self, df_absa_join, category:str = None ):  # column: str ):
@@ -158,6 +161,8 @@ class Step_6(Step):
         # df_absa_join_rev_pos = df_absa_join[df_absa_join[column] >= pos_thres]
         # df_absa_join_rev_neg = df_absa_join[df_absa_join[column] <= neg_thres]
         # print(f'- Reviews         POS / NEG: {len(df_absa_join_rev_pos)} / {len(df_absa_join_rev_neg)}')
+        
+        print(f'Creating base for {category}')
         
         df_absa_join_absa_pos = df_absa_join[
             (df_absa_join['sentiment'].isin(['positivo', 'muito positivo'])) ]            
@@ -202,8 +207,6 @@ class Step_6(Step):
     
       
     def get_stop_words_sab_aro_sens_vis(self):
-        from nltk.corpus import stopwords
-        import nltk
 
         # Define stop words (Portuguese)
         nltk.download('stopwords')
@@ -256,14 +259,11 @@ class Step_6(Step):
             new_word = sort_two_words(word)
             stop_words_sorted.add(new_word)
         
-        print
         return stop_words_sorted
     
     
     def get_stop_words_alco_amarg(self):
-        from nltk.corpus import stopwords
-        import nltk
-
+        
         # Define stop words (Portuguese)
         nltk.download('stopwords')
         stop_words = set(stopwords.words('portuguese'))
@@ -271,7 +271,7 @@ class Step_6(Step):
             'sem', 'boa', 'ausente', 'agradável', 'ruim', 'mais', 'bom preço', 'preço acessível', 'preço razoável', 'preço baixo',
             'preço absurdo', 'preço abusivo',  'preço salgado', 'preço', 'preço muito alto', 'preço não vale', 
             'preço elevado', 'custobenefício não é dos melhores', 'péssimo custobenefício', 'preço não compensa',
-            'custo alto', 'preço não ajuda', 'não vale o preço',  'preço alto', 
+            'custo alto', 'preço não ajuda', 'não vale o preço',  'preço alto', 'boa cerveja',
             'custobenefício ruim', 'preço não justifica', 'muito cara', 'de álcool', 'alcoólica', 'amarga', 'gostoso','ótimo',
             'característico'
         ])
@@ -281,10 +281,25 @@ class Step_6(Step):
             new_word = sort_two_words(word)
             stop_words_sorted.add(new_word)
         
-        print
         return stop_words_sorted
     
+    
+    def get_stop_words_all_cats(self):
 
+        nltk.download('stopwords')
+        stop_words = set(stopwords.words('portuguese'))
+
+        stop_words.update(self.get_stop_words_alco_amarg())
+        # stop_words.update(['if needeed', ])
+        stop_words_sorted = stop_words.copy()
+        
+        for word in stop_words:
+            new_word = sort_two_words(word)
+            stop_words_sorted.add(new_word)
+        
+        return stop_words_sorted
+
+        
 
     def generate_word_cloud(self, df: pd.DataFrame, base_name: str, stop_words: list, categories: list, max_words=50, split_words=False):
         
@@ -324,27 +339,35 @@ class Step_6(Step):
 
         word_category_mapping = {}
         
+        most_common_num = max_words
+        # Apply extraction and count words
+        word_list = df['aspect'].apply(extract_entities).sum()
+        word_count = Counter(word_list)
+        word_count = Counter(dict(word_count.most_common(most_common_num)))
+        most_common_words = [word for word, count in word_count.most_common(most_common_num)]
+                
+        print(f'\n\n================\nWord count for {base_name}:')
+        print(word_count)
+        
         # Create a mapping between words and their corresponding categories
         for index, row in df.iterrows():
             words = extract_entities(row['aspect'])
             for word in words:
-                if word in word_category_mapping:
-                    word_category_mapping[word].add(row['category'])
-                    word_category_mapping_str_sorted = sorted(word_category_mapping[word])
-                    combined_categ_str = "_".join(word_category_mapping_str_sorted)
-                    # Combine colors for the new category
-                    for i in range(len(word_category_mapping_str_sorted)-1):
-                        combined_color = combine_colors(category_colors[word_category_mapping_str_sorted[i]], category_colors[word_category_mapping_str_sorted[i+1]])
-                        category_colors[combined_categ_str] = combined_color
-                else:
-                    word_category_mapping[word] = {row['category']}
+                if word in most_common_words:  # Filter words using the 100 most common words
+                    if word in word_category_mapping:
+                        word_category_mapping[word].add(row['category'])
+                        word_category_mapping_str_sorted = sorted(word_category_mapping[word])
+                        # Combine colors for the new category
+                        colors_size = len(word_category_mapping_str_sorted)
+                        if colors_size > 1:
+                            combined_categ_str = "_".join(word_category_mapping_str_sorted)
+                            combined_color = category_colors[word_category_mapping_str_sorted[0]]
+                            for i in range(colors_size-1):
+                                combined_color = combine_colors(combined_color, category_colors[word_category_mapping_str_sorted[i+1]])
+                            category_colors[combined_categ_str] = combined_color
+                    else:
+                        word_category_mapping[word] = {row['category']}
 
-        # Apply extraction and count words
-        word_list = df['aspect'].apply(extract_entities).sum()
-        word_count = Counter(word_list)
-        print(f'\n\n================\nWord count for {base_name}:')
-        print(word_count)
-        
         # Convert sets in word_category_mapping to tuples before passing them to Counter
         category_word_count = Counter([tuple(value) for value in word_category_mapping.values()])
         print(f'Number of words per category for {base_name}:')
@@ -360,13 +383,14 @@ class Step_6(Step):
 
         if base_name.startswith('all_cats'):
             self.create_legend(category_colors, base_name)
-        
+
+
 
     def create_legend(self, colors_dict, base_name):
         # Sort the dictionary first by the number of words, then alphabetically
         sorted_colors = sorted(colors_dict.items(), key=lambda x: (len(x[0].split('_')), x[0]))
         
-        fig, ax = plt.subplots(figsize=(10, 40))
+        fig, ax = plt.subplots(figsize=(10, 10))
         # plt.subplots_adjust(left=0.2, right=0.8, top=0.99, bottom=0.01)
         
         max_colors = 1000
