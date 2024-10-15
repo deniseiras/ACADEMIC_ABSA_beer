@@ -127,12 +127,18 @@ class Step_6(Step):
         print(f'- Base ABSA      - line count: {len(df_base_absa)}')
         print(f'- Base Joined    - line count: {len(df_absa_as_join)}')
         
-        # df_aroma_pos, df_aroma_neg = self.create_base(df_absa_as_join, 'aroma')
-        # df_visual_pos, df_visual_neg = self.create_base(df_absa_as_join, 'visual')
-        # df_flavor_pos, df_flavor_neg = self.create_base(df_absa_as_join, 'sabor')
-        # df_sensation_pos, df_sensation_neg = self.create_base(df_absa_as_join, 'sensação na boca')
-        # df_amargor_pos, df_amargor_neg = self.create_base(df_absa_as_join, 'amargor')
-        # df_alcool_pos, df_alcool_neg = self.create_base(df_absa_as_join, 'álcool')
+        # print the most common beer_style per year using df_absa_as_join
+        df_styles = df_absa_as_join[['beer_style', 'year']]
+        beer_style_counts = df_styles.groupby(['year', 'beer_style']).size().reset_index(name='count')
+        most_common_style_per_year = beer_style_counts.loc[beer_style_counts.groupby('year')['count'].idxmax()]
+        print(most_common_style_per_year)
+        
+        df_aroma_pos, df_aroma_neg = self.create_base(df_absa_as_join, 'aroma')
+        df_visual_pos, df_visual_neg = self.create_base(df_absa_as_join, 'visual')
+        df_flavor_pos, df_flavor_neg = self.create_base(df_absa_as_join, 'sabor')
+        df_sensation_pos, df_sensation_neg = self.create_base(df_absa_as_join, 'sensação na boca')
+        df_amargor_pos, df_amargor_neg = self.create_base(df_absa_as_join, 'amargor')
+        df_alcool_pos, df_alcool_neg = self.create_base(df_absa_as_join, 'álcool')
         # include all categories, also alcool, amargor
         df_all_cats_pos, df_all_cats_neg = self.create_base(df_absa_as_join)
         
@@ -142,33 +148,34 @@ class Step_6(Step):
         max_words = 50
         split_words = False
         
-        # stop_words_sab_aro_sens_vis = self.get_stop_words_sab_aro_sens_vis()
-        # self.generate_word_cloud(df_aroma_pos, 'aroma_pos', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
-        # self.generate_word_cloud(df_aroma_neg, 'aroma_neg', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
-        # self.generate_word_cloud(df_visual_pos, 'visual_pos', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
-        # self.generate_word_cloud(df_visual_neg, 'visual_neg', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
-        # self.generate_word_cloud(df_flavor_pos, 'flavor_pos', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
-        # self.generate_word_cloud(df_flavor_neg, 'flavor_neg', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
-        # self.generate_word_cloud(df_sensation_pos, 'sensation_pos', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
-        # self.generate_word_cloud(df_sensation_neg, 'sensation_neg', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
+        stop_words_sab_aro_sens_vis = self.get_stop_words_sab_aro_sens_vis()
+        self.generate_word_cloud(df_aroma_pos, 'aroma_pos', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
+        self.generate_word_cloud(df_aroma_neg, 'aroma_neg', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
+        self.generate_word_cloud(df_visual_pos, 'visual_pos', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
+        self.generate_word_cloud(df_visual_neg, 'visual_neg', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
+        self.generate_word_cloud(df_flavor_pos, 'flavor_pos', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
+        self.generate_word_cloud(df_flavor_neg, 'flavor_neg', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
+        self.generate_word_cloud(df_sensation_pos, 'sensation_pos', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
+        self.generate_word_cloud(df_sensation_neg, 'sensation_neg', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
         
-        # stop_words_amar_alco = self.get_stop_words_alco_amarg()
-        # self.generate_word_cloud(df_amargor_pos, 'amargor_pos', stop_words_amar_alco, categories, max_words=max_words, split_words=split_words)
-        # self.generate_word_cloud(df_amargor_neg, 'amargor_neg', stop_words_amar_alco, categories, max_words=max_words, split_words=split_words)
-        # self.generate_word_cloud(df_alcool_pos, 'alcool_pos', stop_words_amar_alco, categories, max_words=max_words, split_words=split_words)
-        # self.generate_word_cloud(df_alcool_neg, 'alcool_neg', stop_words_amar_alco, categories, max_words=max_words, split_words=split_words)
+        stop_words_amar_alco = self.get_stop_words_alco_amarg()
+        self.generate_word_cloud(df_amargor_pos, 'amargor_pos', stop_words_amar_alco, categories, max_words=max_words, split_words=split_words)
+        self.generate_word_cloud(df_amargor_neg, 'amargor_neg', stop_words_amar_alco, categories, max_words=max_words, split_words=split_words)
+        self.generate_word_cloud(df_alcool_pos, 'alcool_pos', stop_words_amar_alco, categories, max_words=max_words, split_words=split_words)
+        self.generate_word_cloud(df_alcool_neg, 'alcool_neg', stop_words_amar_alco, categories, max_words=max_words, split_words=split_words)
         
         stop_words_all_cats = self.get_stop_words_all_cats()
-        # self.generate_word_cloud(df_all_cats_pos, 'all_cats_pos', stop_words_all_cats, categories, max_words=max_words, split_words=split_words)
-        # self.generate_word_cloud(df_all_cats_neg, 'all_cats_neg', stop_words_all_cats, categories, max_words=max_words, split_words=split_words)
+        self.generate_word_cloud(df_all_cats_pos, 'all_cats_pos', stop_words_all_cats, categories, max_words=max_words, split_words=split_words)
+        self.generate_word_cloud(df_all_cats_neg, 'all_cats_neg', stop_words_all_cats, categories, max_words=max_words, split_words=split_words)
 
         #
         # Generate timeline
         #    
         # group df_absa_as_join by beer_style and year of column review_datetime
-        # df_absa_as_join_grouped = df_absa_as_join.groupby(['beer_style', 'year'])
         self.generate_bar_chart(df_all_cats_neg, stop_words_all_cats, categories, 'negativo')
-        
+        self.generate_bar_chart(df_all_cats_pos, stop_words_all_cats, categories, 'positivo')
+
+
         
     def create_base(self, df_absa_join, category:str = None ):  # column: str ):
         """
@@ -426,6 +433,7 @@ class Step_6(Step):
         
         # Process data to find most common word per category and year
         results = []
+        # df = df[df['year'] >= 2014]
         for year in df['year'].unique():
             df_year = df[df['year'] == year]
             for category in categories:
@@ -456,11 +464,11 @@ class Step_6(Step):
         for i, patch in enumerate(barplot.patches):
             if i >= num_blocks*6:
                 break
-            i_df = i_block * 6 + block 
+            i_df = i_block * len(categories) + block 
             if i_df >= len(result_df) or (i > 1 and i % num_blocks == 0):
                 i_block = 0
                 block += 1
-                i_df = i_block * 6 + block 
+                i_df = i_block * len(categories) + block 
 
             i_block += 1
                 
@@ -486,7 +494,7 @@ class Step_6(Step):
         plt.xlabel('Ano')
         plt.ylabel('Frequência')
         # adjust legend position to above the plot area
-        plt.legend(title='Categoria', loc='upper right', bbox_to_anchor=(1, 1), ncol=2)
+        plt.legend(title='Categoria', loc='upper right', bbox_to_anchor=(1, 1), ncol=3)
         # plt.legend(title='Categoria', loc='upper right', bbox_to_anchor=(1, 1))  # Adjusted legend position
         
         plt.tight_layout()
