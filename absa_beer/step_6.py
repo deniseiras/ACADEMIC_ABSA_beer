@@ -7,6 +7,8 @@ Functions:
     - 
 """
 
+#TODO - separate in step 6 and 7
+
 from step import Step
 
 import numpy as np
@@ -19,6 +21,9 @@ from wordcloud import WordCloud
 from nltk.corpus import stopwords
 from matplotlib import pyplot as plt
 from matplotlib.colors import to_rgb, to_hex, rgb_to_hsv
+
+import statsmodels.api as sm
+from statsmodels.formula.api import ols
 
  # Function to clean and extract words/entities
 def extract_entities(text, stop_words, split_words=False):
@@ -127,11 +132,10 @@ class Step_6(Step):
         print(f'- Base ABSA      - line count: {len(df_base_absa)}')
         print(f'- Base Joined    - line count: {len(df_absa_as_join)}')
         
-        # print the most common beer_style per year using df_absa_as_join
-        df_styles = df_absa_as_join[['beer_style', 'year']]
-        beer_style_counts = df_styles.groupby(['year', 'beer_style']).size().reset_index(name='count')
-        most_common_style_per_year = beer_style_counts.loc[beer_style_counts.groupby('year')['count'].idxmax()]
-        print(most_common_style_per_year)
+        # Base AS join to use for AS correlation with review_general_set
+        df_base_as_interested_columns = df_base_principal[['index', 'review_general_rate', 'review_general_set']]
+        df_as_join = df_base_as_interested_columns.join(df_base_absa.set_index('index'), on='index', how='inner')
+        
         
         df_aroma_pos, df_aroma_neg = self.create_base(df_absa_as_join, 'aroma')
         df_visual_pos, df_visual_neg = self.create_base(df_absa_as_join, 'visual')
@@ -142,40 +146,51 @@ class Step_6(Step):
         # include all categories, also alcool, amargor
         df_all_cats_pos, df_all_cats_neg = self.create_base(df_absa_as_join)
         
+        
         #
+        # Step 7
+        # 
+        
+        # print the most common beer_style per year using df_absa_as_join
+        df_styles = df_absa_as_join[['beer_style', 'year']]
+        beer_style_counts = df_styles.groupby(['year', 'beer_style']).size().reset_index(name='count')
+        most_common_style_per_year = beer_style_counts.loc[beer_style_counts.groupby('year')['count'].idxmax()]
+        print(most_common_style_per_year)
+        
         # Generate word clouds
-        #
         max_words = 50
         split_words = False
         
-        stop_words_sab_aro_sens_vis = self.get_stop_words_sab_aro_sens_vis()
-        self.generate_word_cloud(df_aroma_pos, 'aroma_pos', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
-        self.generate_word_cloud(df_aroma_neg, 'aroma_neg', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
-        self.generate_word_cloud(df_visual_pos, 'visual_pos', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
-        self.generate_word_cloud(df_visual_neg, 'visual_neg', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
-        self.generate_word_cloud(df_flavor_pos, 'flavor_pos', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
-        self.generate_word_cloud(df_flavor_neg, 'flavor_neg', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
-        self.generate_word_cloud(df_sensation_pos, 'sensation_pos', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
-        self.generate_word_cloud(df_sensation_neg, 'sensation_neg', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
+        # stop_words_sab_aro_sens_vis = self.get_stop_words_sab_aro_sens_vis()
+        # self.generate_word_cloud(df_aroma_pos, 'aroma_pos', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
+        # self.generate_word_cloud(df_aroma_neg, 'aroma_neg', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
+        # self.generate_word_cloud(df_visual_pos, 'visual_pos', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
+        # self.generate_word_cloud(df_visual_neg, 'visual_neg', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
+        # self.generate_word_cloud(df_flavor_pos, 'flavor_pos', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
+        # self.generate_word_cloud(df_flavor_neg, 'flavor_neg', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
+        # self.generate_word_cloud(df_sensation_pos, 'sensation_pos', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
+        # self.generate_word_cloud(df_sensation_neg, 'sensation_neg', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
         
-        stop_words_amar_alco = self.get_stop_words_alco_amarg()
-        self.generate_word_cloud(df_amargor_pos, 'amargor_pos', stop_words_amar_alco, categories, max_words=max_words, split_words=split_words)
-        self.generate_word_cloud(df_amargor_neg, 'amargor_neg', stop_words_amar_alco, categories, max_words=max_words, split_words=split_words)
-        self.generate_word_cloud(df_alcool_pos, 'alcool_pos', stop_words_amar_alco, categories, max_words=max_words, split_words=split_words)
-        self.generate_word_cloud(df_alcool_neg, 'alcool_neg', stop_words_amar_alco, categories, max_words=max_words, split_words=split_words)
+        # stop_words_amar_alco = self.get_stop_words_alco_amarg()
+        # self.generate_word_cloud(df_amargor_pos, 'amargor_pos', stop_words_amar_alco, categories, max_words=max_words, split_words=split_words)
+        # self.generate_word_cloud(df_amargor_neg, 'amargor_neg', stop_words_amar_alco, categories, max_words=max_words, split_words=split_words)
+        # self.generate_word_cloud(df_alcool_pos, 'alcool_pos', stop_words_amar_alco, categories, max_words=max_words, split_words=split_words)
+        # self.generate_word_cloud(df_alcool_neg, 'alcool_neg', stop_words_amar_alco, categories, max_words=max_words, split_words=split_words)
         
-        stop_words_all_cats = self.get_stop_words_all_cats()
-        self.generate_word_cloud(df_all_cats_pos, 'all_cats_pos', stop_words_all_cats, categories, max_words=max_words, split_words=split_words)
-        self.generate_word_cloud(df_all_cats_neg, 'all_cats_neg', stop_words_all_cats, categories, max_words=max_words, split_words=split_words)
+        # stop_words_all_cats = self.get_stop_words_all_cats()
+        # self.generate_word_cloud(df_all_cats_pos, 'all_cats_pos', stop_words_all_cats, categories, max_words=max_words, split_words=split_words)
+        # self.generate_word_cloud(df_all_cats_neg, 'all_cats_neg', stop_words_all_cats, categories, max_words=max_words, split_words=split_words)
 
-        #
-        # Generate timeline
-        #    
-        # group df_absa_as_join by beer_style and year of column review_datetime
-        self.generate_bar_chart(df_all_cats_neg, stop_words_all_cats, categories, 'negativo')
-        self.generate_bar_chart(df_all_cats_pos, stop_words_all_cats, categories, 'positivo')
+        # # Generate timeline
+        # self.generate_bar_chart(df_all_cats_neg, stop_words_all_cats, categories, 'negativo')
+        # self.generate_bar_chart(df_all_cats_pos, stop_words_all_cats, categories, 'positivo')
 
 
+        # Statistical analysis beteen AS and review_general_set 
+        model = ols('review_general_set ~ C(sentiment_as)', data=df_as_join).fit()
+        anova_table = sm.stats.anova_lm(model, typ=2)
+        print(anova_table)
+        
         
     def create_base(self, df_absa_join, category:str = None ):  # column: str ):
         """
