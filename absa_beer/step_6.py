@@ -7,18 +7,29 @@ Functions:
     - 
 """
 
-import pandas as pd
 from step import Step
-import re
+
+import numpy as np
 import pandas as pd
-from collections import Counter
 import re
-from wordcloud import WordCloud
-from matplotlib import pyplot as plt
-from nltk.corpus import stopwords
 import nltk
+import seaborn as sns
+from collections import Counter
+from wordcloud import WordCloud
+from nltk.corpus import stopwords
+from matplotlib import pyplot as plt
+from matplotlib.colors import to_rgb, to_hex, rgb_to_hsv
 
-
+ # Function to clean and extract words/entities
+def extract_entities(text, stop_words, split_words=False):
+    text = text.lower()
+    text = re.sub(r'[^a-zà-ÿ\s,]', '', text)
+    if split_words:
+        words = re.split(r'[,\s]+', text)
+        words = [word.strip() for word in words if word.strip() and word not in stop_words]
+    else:
+        words = [text] if text not in stop_words else []
+    return words
 
 # if the value of the column "aspect" of df_absa_as_join have exactly two words, put the words in alphabetical order to avoid duplicates
 def sort_two_words(aspect: str):
@@ -98,11 +109,15 @@ class Step_6(Step):
         df_base_as = self.df 
         df_base_as = df_base_as.rename(columns={'sentiment': 'sentiment_as'})
 
-        # Create a base joining df_base_principal and df_base_absa where df_base_principal review_general_set >= 4 and df_base_absa "sentiment" is "positivo" ou "muito positivo"
+        #
+        # Create a base joining df_base_principal, df_base_absa and df_base_as
+        #
         df_base_asba_interested_columns = df_base_principal[['index', 'review_comment', 'review_datetime', 'beer_style', 'review_general_rate', 
             'review_aroma', 'review_visual', 'review_flavor', 'review_sensation', 'review_general_set']]
         df_absa_as_join = df_base_asba_interested_columns.join(df_base_absa.set_index('index'), on='index', how='inner')
         df_absa_as_join = df_absa_as_join.join(df_base_as.set_index('index'), on='index', how='inner')
+        df_absa_as_join["review_datetime"] = pd.to_datetime(df_absa_as_join["review_datetime"])
+        df_absa_as_join['year'] = df_absa_as_join['review_datetime'].dt.year
         df_absa_as_join.to_csv(f'{self.work_dir}/step_6_join_ABSA-AS-PRINCIPAL.csv', index=False)
         
         # removes "amargor de ", "sabor de" ... from aspect
@@ -112,40 +127,49 @@ class Step_6(Step):
         print(f'- Base ABSA      - line count: {len(df_base_absa)}')
         print(f'- Base Joined    - line count: {len(df_absa_as_join)}')
         
-        df_aroma_pos, df_aroma_neg = self.create_base(df_absa_as_join, 'aroma')
-        df_visual_pos, df_visual_neg = self.create_base(df_absa_as_join, 'visual')
-        df_flavor_pos, df_flavor_neg = self.create_base(df_absa_as_join, 'sabor')
-        df_sensation_pos, df_sensation_neg = self.create_base(df_absa_as_join, 'sensação na boca')
-        df_amargor_pos, df_amargor_neg = self.create_base(df_absa_as_join, 'amargor')
-        df_alcool_pos, df_alcool_neg = self.create_base(df_absa_as_join, 'álcool')
-        
+        # df_aroma_pos, df_aroma_neg = self.create_base(df_absa_as_join, 'aroma')
+        # df_visual_pos, df_visual_neg = self.create_base(df_absa_as_join, 'visual')
+        # df_flavor_pos, df_flavor_neg = self.create_base(df_absa_as_join, 'sabor')
+        # df_sensation_pos, df_sensation_neg = self.create_base(df_absa_as_join, 'sensação na boca')
+        # df_amargor_pos, df_amargor_neg = self.create_base(df_absa_as_join, 'amargor')
+        # df_alcool_pos, df_alcool_neg = self.create_base(df_absa_as_join, 'álcool')
         # include all categories, also alcool, amargor
         df_all_cats_pos, df_all_cats_neg = self.create_base(df_absa_as_join)
         
+        #
+        # Generate word clouds
+        #
         max_words = 50
         split_words = False
         
-        stop_words_sab_aro_sens_vis = self.get_stop_words_sab_aro_sens_vis()
-        self.generate_word_cloud(df_aroma_pos, 'aroma_pos', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
-        self.generate_word_cloud(df_aroma_neg, 'aroma_neg', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
-        self.generate_word_cloud(df_visual_pos, 'visual_pos', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
-        self.generate_word_cloud(df_visual_neg, 'visual_neg', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
-        self.generate_word_cloud(df_flavor_pos, 'flavor_pos', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
-        self.generate_word_cloud(df_flavor_neg, 'flavor_neg', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
-        self.generate_word_cloud(df_sensation_pos, 'sensation_pos', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
-        self.generate_word_cloud(df_sensation_neg, 'sensation_neg', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
+        # stop_words_sab_aro_sens_vis = self.get_stop_words_sab_aro_sens_vis()
+        # self.generate_word_cloud(df_aroma_pos, 'aroma_pos', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
+        # self.generate_word_cloud(df_aroma_neg, 'aroma_neg', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
+        # self.generate_word_cloud(df_visual_pos, 'visual_pos', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
+        # self.generate_word_cloud(df_visual_neg, 'visual_neg', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
+        # self.generate_word_cloud(df_flavor_pos, 'flavor_pos', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
+        # self.generate_word_cloud(df_flavor_neg, 'flavor_neg', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
+        # self.generate_word_cloud(df_sensation_pos, 'sensation_pos', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
+        # self.generate_word_cloud(df_sensation_neg, 'sensation_neg', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
         
-        stop_words_amar_alco = self.get_stop_words_alco_amarg()
-        self.generate_word_cloud(df_amargor_pos, 'amargor_pos', stop_words_amar_alco, categories, max_words=max_words, split_words=split_words)
-        self.generate_word_cloud(df_amargor_neg, 'amargor_neg', stop_words_amar_alco, categories, max_words=max_words, split_words=split_words)
-        self.generate_word_cloud(df_alcool_pos, 'alcool_pos', stop_words_amar_alco, categories, max_words=max_words, split_words=split_words)
-        self.generate_word_cloud(df_alcool_neg, 'alcool_neg', stop_words_amar_alco, categories, max_words=max_words, split_words=split_words)
+        # stop_words_amar_alco = self.get_stop_words_alco_amarg()
+        # self.generate_word_cloud(df_amargor_pos, 'amargor_pos', stop_words_amar_alco, categories, max_words=max_words, split_words=split_words)
+        # self.generate_word_cloud(df_amargor_neg, 'amargor_neg', stop_words_amar_alco, categories, max_words=max_words, split_words=split_words)
+        # self.generate_word_cloud(df_alcool_pos, 'alcool_pos', stop_words_amar_alco, categories, max_words=max_words, split_words=split_words)
+        # self.generate_word_cloud(df_alcool_neg, 'alcool_neg', stop_words_amar_alco, categories, max_words=max_words, split_words=split_words)
         
         stop_words_all_cats = self.get_stop_words_all_cats()
-        self.generate_word_cloud(df_all_cats_pos, 'all_cats_pos', stop_words_all_cats, categories, max_words=max_words, split_words=split_words)
-        self.generate_word_cloud(df_all_cats_neg, 'all_cats_neg', stop_words_all_cats, categories, max_words=max_words, split_words=split_words)
+        # self.generate_word_cloud(df_all_cats_pos, 'all_cats_pos', stop_words_all_cats, categories, max_words=max_words, split_words=split_words)
+        # self.generate_word_cloud(df_all_cats_neg, 'all_cats_neg', stop_words_all_cats, categories, max_words=max_words, split_words=split_words)
 
-
+        #
+        # Generate timeline
+        #    
+        # group df_absa_as_join by beer_style and year of column review_datetime
+        # df_absa_as_join_grouped = df_absa_as_join.groupby(['beer_style', 'year'])
+        self.generate_bar_chart(df_all_cats_neg, stop_words_all_cats, categories, 'negativo')
+        
+        
     def create_base(self, df_absa_join, category:str = None ):  # column: str ):
         """
         This function creates a base with the desired column (aroma, visual, flavor, sensation, general_set)
@@ -285,12 +309,9 @@ class Step_6(Step):
     
     
     def get_stop_words_all_cats(self):
-
-        nltk.download('stopwords')
-        stop_words = set(stopwords.words('portuguese'))
-
-        stop_words.update(self.get_stop_words_alco_amarg())
-        # stop_words.update(['if needeed', ])
+        
+        stop_words = self.get_stop_words_alco_amarg()
+        stop_words.update(self.get_stop_words_sab_aro_sens_vis())
         stop_words_sorted = stop_words.copy()
         
         for word in stop_words:
@@ -303,17 +324,6 @@ class Step_6(Step):
 
     def generate_word_cloud(self, df: pd.DataFrame, base_name: str, stop_words: list, categories: list, max_words=50, split_words=False):
         
-        # Function to clean and extract words/entities
-        def extract_entities(text, split_words=split_words):
-            text = text.lower()
-            text = re.sub(r'[^a-zà-ÿ\s,]', '', text)
-            if split_words:
-                words = re.split(r'[,\s]+', text)
-                words = [word.strip() for word in words if word.strip() and word not in stop_words]
-            else:
-                words = [text] if text not in stop_words else []
-            return words
-
         # Function to map category to a color
         def color_func(word, font_size, position, orientation, random_state=None, **kwargs):
             word_category_mapping_str_sorted = sorted(word_category_mapping[word])
@@ -322,26 +332,19 @@ class Step_6(Step):
 
         # Helper function to combine two colors (average RGB values)
         def combine_colors(color1, color2):
-            from matplotlib.colors import to_rgb, to_hex
             rgb1 = to_rgb(color1)
             rgb2 = to_rgb(color2)
             avg_rgb = [(c1 + c2) / 2 for c1, c2 in zip(rgb1, rgb2)]
             return to_hex(avg_rgb)
 
-        category_colors = {
-            "visual": "Blue",
-            "aroma": "Orange",
-            "sabor": "Green",
-            "sensação na boca": "Red",
-            "álcool": "Magenta",
-            "amargor": "Lime"
-        }
+        category_colors = self.get_category_colors()
 
         word_category_mapping = {}
         
         most_common_num = max_words
-        # Apply extraction and count words
-        word_list = df['aspect'].apply(extract_entities).sum()
+        # Apply extraction and count words 
+        word_list = df['aspect'].apply(lambda x: extract_entities(x, stop_words, split_words=split_words)).sum()
+        # word_list = df['aspect'].apply(extract_entities).sum()
         word_count = Counter(word_list)
         word_count = Counter(dict(word_count.most_common(most_common_num)))
         most_common_words = [word for word, count in word_count.most_common(most_common_num)]
@@ -351,7 +354,7 @@ class Step_6(Step):
         
         # Create a mapping between words and their corresponding categories
         for index, row in df.iterrows():
-            words = extract_entities(row['aspect'])
+            words = extract_entities(row['aspect'], stop_words)
             for word in words:
                 if word in most_common_words:  # Filter words using the 100 most common words
                     if word in word_category_mapping:
@@ -385,14 +388,16 @@ class Step_6(Step):
             self.create_legend(category_colors, base_name)
 
 
-
     def create_legend(self, colors_dict, base_name):
-        # Sort the dictionary first by the number of words, then alphabetically
-        sorted_colors = sorted(colors_dict.items(), key=lambda x: (len(x[0].split('_')), x[0]))
-        
+        # Convert RGB to HSV and sort by the hue value to create a rainbow order
+        def rgb_to_hsv_tuple(color_rgb):
+            return rgb_to_hsv(to_rgb(color_rgb))
+
+        # Sort colors by hue (first component of HSV tuple), which corresponds to the rainbow spectrum
+        sorted_colors = sorted(colors_dict.items(), key=lambda x: rgb_to_hsv_tuple(x[1])[0])
+
         fig, ax = plt.subplots(figsize=(10, 10))
-        # plt.subplots_adjust(left=0.2, right=0.8, top=0.99, bottom=0.01)
-        
+
         max_colors = 1000
         for i, (attribute, color) in enumerate(sorted_colors):
             # Draw the circle
@@ -404,12 +409,102 @@ class Step_6(Step):
             ax.text(0.15, 0.95 - i * 0.03, f'{attribute_spaces}', va='center', fontsize=12)
             if i == max_colors - 1:
                 break
-            
+
         # Graph settings
         ax.set_xlim(0, 1)
         ax.set_ylim(0, 1)
         ax.axis('off')  # Remove the axes
 
-        # plt.show()
+        # Save the legend as an image
         legend_name = f'{self.work_dir}/legend_{base_name}.png'
         plt.savefig(legend_name, bbox_inches='tight', dpi=300)
+
+
+    def generate_bar_chart(self, df: pd.DataFrame, stop_words: list, categories: list, sentiment: str):
+
+        category_colors = self.get_category_colors()
+        
+        # Process data to find most common word per category and year
+        results = []
+        for year in df['year'].unique():
+            df_year = df[df['year'] == year]
+            for category in categories:
+                df_category = df_year[df_year['category'] == category]
+                word_list = df_category['aspect'].apply(lambda x: extract_entities(x, stop_words)).sum()  # Flatten the list of words
+                # word_list = df_category['aspect'].apply(extract_entities).sum()  # Flatten the list of words
+                word_count = Counter(word_list)
+                if word_count:
+                    most_common_word, count = word_count.most_common(1)[0]
+                    results.append({'year': year, 'category': category, 'word': most_common_word, 'count': count})
+
+        result_df = pd.DataFrame(results)
+        # sort result_df by year descendent then by category ascending
+        result_df = result_df.sort_values(by=['year', 'category'], ascending=[True, True])
+        print(result_df)
+        
+        # Enlarge the figure width
+        plt.figure(figsize=(15, 6))  # Increased width from 10 to 15
+        sns.set(style="whitegrid")
+        
+        # Create the barplot
+        barplot = sns.barplot(x='year', y='count', hue='category', data=result_df, palette=category_colors)
+        
+        block = 0
+        i_block = 0
+        num_blocks = len(result_df['year'].unique())
+       
+        for i, patch in enumerate(barplot.patches):
+            if i >= num_blocks*6:
+                break
+            i_df = i_block * 6 + block 
+            if i_df >= len(result_df) or (i > 1 and i % num_blocks == 0):
+                i_block = 0
+                block += 1
+                i_df = i_block * 6 + block 
+
+            i_block += 1
+                
+            # Get the current bar's x, y position and height (count)
+            height = patch.get_height()
+            width = patch.get_width()
+            x = patch.get_x() + width / 2
+            y = height
+
+            # Annotate with the most common word from result_df
+            barplot.text(
+                x=x, 
+                y=y + 0.5,  # Slightly above the bar
+                s=result_df['word'].iloc[i_df],  # Fetch word for this bar
+                ha='center', va='bottom', 
+                fontsize=10, color='black', weight='bold',
+                rotation=90
+            )
+        
+        
+        
+        # plt.title('Frequência das Palavras Mais Comuns por Categoria e Ano')
+        plt.xlabel('Ano')
+        plt.ylabel('Frequência')
+        # adjust legend position to above the plot area
+        plt.legend(title='Categoria', loc='upper right', bbox_to_anchor=(1, 1), ncol=2)
+        # plt.legend(title='Categoria', loc='upper right', bbox_to_anchor=(1, 1))  # Adjusted legend position
+        
+        plt.tight_layout()
+        file_name = f'{self.work_dir}/timeline_{sentiment}.png'
+        plt.savefig(file_name, bbox_inches='tight', dpi=300)
+        
+
+    def get_category_colors(self):
+        category_colors = {
+            "visual": "Blue",
+            "aroma": "Orange",
+            "sabor": "Green",
+            "sensação na boca": "Red",
+            "álcool": "Magenta",
+            "amargor": "Lime"
+        }
+        
+        return category_colors
+
+
+
