@@ -2,17 +2,10 @@
 
 This repository contains the methodology tasks of the paper.
 
-Methods:
+ASBA techniques were used in beer evaluation texts to identify the feeling of each CC. AS techniques were applied to identify the overall sentiment of the review. The following sections present the Material and
+methods, as seen in Figure 1: Step 1 and Step 2 described the tasks of data collection, analysis and pre-processing. Step 3 created the Main Base by selection of valid assessments. Step 4 identified and performed ASBA and Step 5 performed the general AS of the assessment in the Main Base. Step 6 generated Final bases through joining of the Main Base and the bases resulting from ABSA and AS and Step 7 described the processes for generating results using these bases.
 
-- Step 1: Data collection from the site "brejas.com.br"
-- Step 2: Data preprocessing
-- Step 3: Aspect-Based Sentiment Analysis of Beer Characteristics (CC)
-- Step 4: General sentiment analysis of comments
-- Step 5: Selection of the best and worst reviews in terms of overall rating
-- Step 6: Identification of CC and their categories, obtained in Step 3, most referenced in the resulting base of Step 5
-- Results generation
-
-TODO: update after text release
+![Fig1  Fluxograma](https://github.com/user-attachments/assets/7596b35a-f8a8-4214-a70b-813ae33bbb99)
 
 ### Installing
 
