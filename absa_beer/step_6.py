@@ -22,8 +22,22 @@ from nltk.corpus import stopwords
 from matplotlib import pyplot as plt
 from matplotlib.colors import to_rgb, to_hex, rgb_to_hsv
 
-import statsmodels.api as sm
 from statsmodels.formula.api import ols
+from sklearn.preprocessing import LabelEncoder
+import statsmodels.api as sm # estimação de modelos
+from statsmodels.discrete.discrete_model import MNLogit # estimação do modelo
+                                                        #logístico multinomial
+from scipy import stats # estatística chi2                                                        
+
+def Qui2(modelo_multinomial):
+    maximo = modelo_multinomial.llf
+    minimo = modelo_multinomial.llnull
+    qui2 = -2*(minimo - maximo)
+    pvalue = stats.distributions.chi2.sf(qui2,4)
+    df = pd.DataFrame({'Qui quadrado':[qui2],
+                    'pvalue':[pvalue]})
+    return df
+
 
  # Function to clean and extract words/entities
 def extract_entities(text, stop_words, split_words=False):
@@ -102,6 +116,10 @@ class Step_6(Step):
         
         print(f'\n\nRunning Step 6\n================================')
         
+        #
+        # Step 6
+        #
+        
         self.read_csv(f'{self.work_dir}/step_4.csv')
         df_base_absa = self.df
         categories = ["visual", "aroma", "sabor", "álcool", "amargor", "sensação na boca"]
@@ -113,30 +131,31 @@ class Step_6(Step):
         self.read_csv(f'{self.work_dir}/step_5.csv')
         df_base_as = self.df 
         df_base_as = df_base_as.rename(columns={'sentiment': 'sentiment_as'})
+        # Alucination in step 5 = value "excelent" included
+        df_base_as = df_base_as[df_base_as['sentiment_as'].isin(['muito negativo', 'negativo', 'neutro', 'positivo', 'muito positivo'])]
 
-        #
         # Create a base joining df_base_principal, df_base_absa and df_base_as
-        #
         df_base_asba_interested_columns = df_base_principal[['index', 'review_comment', 'review_datetime', 'beer_style', 'review_general_rate', 
             'review_aroma', 'review_visual', 'review_flavor', 'review_sensation', 'review_general_set']]
         df_absa_as_join = df_base_asba_interested_columns.join(df_base_absa.set_index('index'), on='index', how='inner')
         df_absa_as_join = df_absa_as_join.join(df_base_as.set_index('index'), on='index', how='inner')
         df_absa_as_join["review_datetime"] = pd.to_datetime(df_absa_as_join["review_datetime"])
         df_absa_as_join['year'] = df_absa_as_join['review_datetime'].dt.year
-        df_absa_as_join.to_csv(f'{self.work_dir}/step_6_join_ABSA-AS-PRINCIPAL.csv', index=False)
-        
-        # removes "amargor de ", "sabor de" ... from aspect
         df_absa_as_join['aspect'] = df_absa_as_join['aspect'].apply(remove_obvious_words)
+        
+        df_base_as_interested_columns = df_base_principal[['index', 'review_general_rate', 'review_general_set']]
+        df_as_join = df_base_as_interested_columns.join(df_base_as.set_index('index'), on='index', how='inner')
         
         print(f'- Base Principal - line count: {len(df_base_principal)}')
         print(f'- Base ABSA      - line count: {len(df_base_absa)}')
         print(f'- Base Joined    - line count: {len(df_absa_as_join)}')
+        print(f'- Base AS        - line count: {len(df_base_as)}')
+        print(f'- Base AS join   - line count: {len(df_as_join)}')
         
-        # Base AS join to use for AS correlation with review_general_set
-        df_base_as_interested_columns = df_base_principal[['index', 'review_general_rate', 'review_general_set']]
-        df_as_join = df_base_as_interested_columns.join(df_base_absa.set_index('index'), on='index', how='inner')
-        
-        
+        # save df_absa_as_join and df_as_join to csv files
+        df_absa_as_join.to_csv(f'{self.work_dir}/step_6_join_ABSA-AS-PRINCIPAL.csv', index=False)
+        df_as_join.to_csv(f'{self.work_dir}/step_6_join_AS-PRINCIPAL.csv', index=False)
+         
         df_aroma_pos, df_aroma_neg = self.create_base(df_absa_as_join, 'aroma')
         df_visual_pos, df_visual_neg = self.create_base(df_absa_as_join, 'visual')
         df_flavor_pos, df_flavor_neg = self.create_base(df_absa_as_join, 'sabor')
@@ -154,44 +173,99 @@ class Step_6(Step):
         # print the most common beer_style per year using df_absa_as_join
         df_styles = df_absa_as_join[['beer_style', 'year']]
         beer_style_counts = df_styles.groupby(['year', 'beer_style']).size().reset_index(name='count')
+        print(beer_style_counts)
         most_common_style_per_year = beer_style_counts.loc[beer_style_counts.groupby('year')['count'].idxmax()]
         print(most_common_style_per_year)
         
+
+        # Box plot of review_general_set by sentiment
+        sentiment_order = ['muito negativo', 'negativo', 'neutro', 'positivo', 'muito positivo' ]
+        palette = {
+            'muito positivo': 'green', 
+            'positivo': 'lightgreen', 
+            'neutro': 'gray', 
+            'negativo': 'lightcoral', 
+            'muito negativo': 'red'
+        }
+       
+        plt.figure(figsize=(10, 6))
+        sns.boxplot(x='sentiment_as', y='review_general_set', data=df_as_join, order=sentiment_order, palette=palette,
+                    hue='sentiment_as', legend=False)
+        # sns.stripplot(x='sentiment_as', y='review_general_set', data=df_as_join, order=sentiment_order, 
+        #       color='black', size=8, jitter=True, alpha=0.2)
+        plt.xlabel('Polaridade')
+        plt.ylabel('review_general_set')
+        plt.title('Boxplot da recomendação do avaliador (review_general_set) por polaridade')
+        # print into a file
+        file_name = f'{self.work_dir}/boxplot_review_general_set_by_sentiment.png'
+        plt.savefig(file_name, bbox_inches='tight', dpi=300)
+    
         # Generate word clouds
         max_words = 50
         split_words = False
         
-        # stop_words_sab_aro_sens_vis = self.get_stop_words_sab_aro_sens_vis()
-        # self.generate_word_cloud(df_aroma_pos, 'aroma_pos', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
-        # self.generate_word_cloud(df_aroma_neg, 'aroma_neg', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
-        # self.generate_word_cloud(df_visual_pos, 'visual_pos', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
-        # self.generate_word_cloud(df_visual_neg, 'visual_neg', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
-        # self.generate_word_cloud(df_flavor_pos, 'flavor_pos', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
-        # self.generate_word_cloud(df_flavor_neg, 'flavor_neg', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
-        # self.generate_word_cloud(df_sensation_pos, 'sensation_pos', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
-        # self.generate_word_cloud(df_sensation_neg, 'sensation_neg', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
+        stop_words_sab_aro_sens_vis = self.get_stop_words_sab_aro_sens_vis()
+        self.generate_word_cloud(df_aroma_pos, 'aroma_pos', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
+        self.generate_word_cloud(df_aroma_neg, 'aroma_neg', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
+        self.generate_word_cloud(df_visual_pos, 'visual_pos', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
+        self.generate_word_cloud(df_visual_neg, 'visual_neg', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
+        self.generate_word_cloud(df_flavor_pos, 'flavor_pos', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
+        self.generate_word_cloud(df_flavor_neg, 'flavor_neg', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
+        self.generate_word_cloud(df_sensation_pos, 'sensation_pos', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
+        self.generate_word_cloud(df_sensation_neg, 'sensation_neg', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
         
-        # stop_words_amar_alco = self.get_stop_words_alco_amarg()
-        # self.generate_word_cloud(df_amargor_pos, 'amargor_pos', stop_words_amar_alco, categories, max_words=max_words, split_words=split_words)
-        # self.generate_word_cloud(df_amargor_neg, 'amargor_neg', stop_words_amar_alco, categories, max_words=max_words, split_words=split_words)
-        # self.generate_word_cloud(df_alcool_pos, 'alcool_pos', stop_words_amar_alco, categories, max_words=max_words, split_words=split_words)
-        # self.generate_word_cloud(df_alcool_neg, 'alcool_neg', stop_words_amar_alco, categories, max_words=max_words, split_words=split_words)
+        stop_words_amar_alco = self.get_stop_words_alco_amarg()
+        self.generate_word_cloud(df_amargor_pos, 'amargor_pos', stop_words_amar_alco, categories, max_words=max_words, split_words=split_words)
+        self.generate_word_cloud(df_amargor_neg, 'amargor_neg', stop_words_amar_alco, categories, max_words=max_words, split_words=split_words)
+        self.generate_word_cloud(df_alcool_pos, 'alcool_pos', stop_words_amar_alco, categories, max_words=max_words, split_words=split_words)
+        self.generate_word_cloud(df_alcool_neg, 'alcool_neg', stop_words_amar_alco, categories, max_words=max_words, split_words=split_words)
         
-        # stop_words_all_cats = self.get_stop_words_all_cats()
-        # self.generate_word_cloud(df_all_cats_pos, 'all_cats_pos', stop_words_all_cats, categories, max_words=max_words, split_words=split_words)
-        # self.generate_word_cloud(df_all_cats_neg, 'all_cats_neg', stop_words_all_cats, categories, max_words=max_words, split_words=split_words)
+        stop_words_all_cats = self.get_stop_words_all_cats()
+        self.generate_word_cloud(df_all_cats_pos, 'all_cats_pos', stop_words_all_cats, categories, max_words=max_words, split_words=split_words)
+        self.generate_word_cloud(df_all_cats_neg, 'all_cats_neg', stop_words_all_cats, categories, max_words=max_words, split_words=split_words)
 
-        # # Generate timeline
-        # self.generate_bar_chart(df_all_cats_neg, stop_words_all_cats, categories, 'negativo')
-        # self.generate_bar_chart(df_all_cats_pos, stop_words_all_cats, categories, 'positivo')
-
-
-        # Statistical analysis beteen AS and review_general_set 
-        model = ols('review_general_set ~ C(sentiment_as)', data=df_as_join).fit()
-        anova_table = sm.stats.anova_lm(model, typ=2)
-        print(anova_table)
+        # Generate timeline
+        self.generate_bar_chart(df_all_cats_neg, stop_words_all_cats, categories, 'negativo')
+        self.generate_bar_chart(df_all_cats_pos, stop_words_all_cats, categories, 'positivo')
         
         
+        # Multinomial Logistic Regression for sentiment_as
+        df_as_join_copy = df_as_join.copy()
+        df_as_join_copy = df_as_join_copy.drop(columns=['index', 'review_general_rate'])
+
+        le = LabelEncoder()
+        df_as_join_copy['sentiment_encoded'] = le.fit_transform(df_as_join_copy['sentiment_as'])
+        print(df_as_join_copy)
+        # print count per sentiment
+        print(df_as_join_copy['sentiment_as'].value_counts().sort_index())
+        
+        # Prepare the X and y variables
+        x = df_as_join_copy[['review_general_set']]  # Independent variable
+        y = df_as_join_copy['sentiment_encoded']     # Dependent variable (encoded sentiment)
+
+        test_model1 = [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0]
+
+        X_const = sm.add_constant(x)
+        model_1MNLogit = MNLogit(endog=y, exog=X_const).fit()
+        print(model_1MNLogit.summary())
+
+        #  Estatística geral do modelo
+        print(f'Qui2 stats = {Qui2(model_1MNLogit)}')
+
+        # Test model
+        # df_test_m1 = pd.DataFrame({'const': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 'review_general_set': test_model1})
+        df_test_m1 = pd.DataFrame({'const': [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], 'review_general_set': test_model1})
+        model1_results = model_1MNLogit.predict(df_test_m1).round(4)
+
+        print(f'\n\nModel 1 Results: \n {model1_results}')
+        predicted_sentiments_m1 = model1_results.idxmax(axis=1)
+        decoded_predictions_m1 = le.inverse_transform(predicted_sentiments_m1)
+
+        # Display the predictions
+        for val, pred in zip(test_model1, decoded_predictions_m1):
+            print(f"Review_general_set: {val} -> Predicted Sentiment: {pred}")
+
+
     def create_base(self, df_absa_join, category:str = None ):  # column: str ):
         """
         This function creates a base with the desired column (aroma, visual, flavor, sensation, general_set)
