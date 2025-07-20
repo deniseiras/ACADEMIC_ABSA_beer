@@ -3,3 +3,8 @@ bs4
 pandas
 selenium
 matplotlib
+wordcloud
+nltk
+webcolors
+seaborn
+scikit-image
