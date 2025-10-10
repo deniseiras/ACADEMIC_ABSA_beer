@@ -16,10 +16,13 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ~~~
 
-Now, clone PORTFOLIO_py_openai_api and use it
+Now, clone openai_api and maritaca_api and install them:
 ~~~
 git clone https://github.com/deniseiras/PORTFOLIO_py_openai_api.git
 pip install -r ../PORTFOLIO_py_openai_api/requirements.txt
+https://github.com/deniseiras/PORTFOLIO_py_maritaca_api.git
+pip install -r ../PORTFOLIO_py_maritaca_api/requirements.txt
+
 ~~~
 
 Configure the paths:
@@ -44,5 +47,5 @@ MARITACAAI_API_KEY=123........................
 Each step has its own processing function called "run", which generates a base called "step_<number>.csv". The following steps uses the bases of the previous step.
 
 ~~~
-python absa_beer.py 
+python absa_beer/absa_beer.py 
 ~~~

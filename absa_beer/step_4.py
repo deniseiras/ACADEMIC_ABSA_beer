@@ -23,9 +23,9 @@ class Step_4(Step):
     def run(self):
         """
         This function runs Step 4 of the Aspect-Based Sentiment Analysis of Beer Characteristics.
-        It reads the step_3.csv (Base Principal) containing the reviews for the previous step, and then creates the 
+        It reads the step_3.csv (Main Base) containing the reviews for the previous step, and then creates the 
         "Base Prompts", used to test models and nshots by testing different prompts. Finally, runs the best prompt in
-        the entire Base (Base Principal)
+        the entire Base (Main Base)
 
         Args:
                 self (object): The object instance that contains the data.
@@ -49,11 +49,11 @@ class Step_4(Step):
         self.run_step_4_2_ABSA_select_model_shots(df_base_prompts)
         
         
-        df_base_principal = self.df
-        print(f'- df_base_principal - line count: {len(df_base_principal)}')
+        df_main_base = self.df
+        print(f'- df_main_base - line count: {len(df_main_base)}')
        
         # do ABSA for real with the best combination of models and shots
-        self.run_step_4_3_evaluate_base_principal(df_base_principal)
+        self.run_step_4_3_evaluate_base_principal(df_main_base)
 
         
     def run_step_4_1_base_prompts(self, reviews_for_prompts_df: pd.DataFrame):
@@ -142,14 +142,14 @@ class Step_4(Step):
                 self.run_ABSA('step_4_2', base_prompts_df, model, nshots, reviews_per_request, is_num_shots_for_each_CC = is_for_each_CC)
                 
                 
-    def run_step_4_3_evaluate_base_principal(self, df_base_principal):
+    def run_step_4_3_evaluate_base_principal(self, df_main_base):
             
         best_model = 'sabia-3'
         best_nshots = 1
         num_reviews_to_process = 10e6
         reviews_per_request = 10
         is_num_shots_for_each_CC = False
-        self.run_ABSA('step_4_3', df_base_principal, best_model, best_nshots, 
+        self.run_ABSA('step_4_3', df_main_base, best_model, best_nshots, 
                       reviews_per_request=reviews_per_request, num_reviews_to_process=num_reviews_to_process, is_num_shots_for_each_CC = is_num_shots_for_each_CC)
         
         print("Please, copy the best file of combination of this step to step_4.csv")

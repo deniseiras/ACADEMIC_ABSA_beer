@@ -23,7 +23,7 @@ class Step_5(Step):
     def run(self):
         """
         This function runs Step 5: General Sentiment Analysis of Reviews.
-        It reads the csv file step_3.csv (Base Principal), and then runs the 
+        It reads the csv file step_3.csv (Main Base), and then runs the 
         SA.
 
         Args:

@@ -20,9 +20,9 @@ class Step_3(Step):
 
    
     def run(self):
-        """Create 'Prompt Base Principal and 'Base Principal' (step_3.csv)
+        """Create 'Prompt Main Base and 'Main Base' (step_3.csv)
 
-        To create the 'Base Principal', used for the AS and ABSA executed in ASBA (Step 4) and AS (Step 5), it was selected
+        To create the 'Main Base', used for the AS and ABSA executed in ASBA (Step 4) and AS (Step 5), it was selected
         the best reviews using a prompt to achieve this.
 
         The step_3_data_analysis sorted the step_2.csv by beer style, review_general_rate and review_num_reviews to create step_3_data_analysis.csv.

@@ -1,4 +1,8 @@
 """_summary_
+Do some analysis on the data from step_2.csv, as:
+    - Count the distinct beer styles using groupby and nunique, and display the total count
+    - Manually map beer styles to BJCP categories from the file 'beer_count_by_bjc_category.csv'
+
 """
 
 # Import necessary libraries
