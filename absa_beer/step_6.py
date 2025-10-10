@@ -162,10 +162,17 @@ class Step_6(Step):
         df_sensation_pos, df_sensation_neg = self.create_base(df_absa_as_join, 'sensação na boca')
         df_amargor_pos, df_amargor_neg = self.create_base(df_absa_as_join, 'amargor')
         df_alcool_pos, df_alcool_neg = self.create_base(df_absa_as_join, 'álcool')
+        
+                
+        # # TEMPORARY - after creating df_absa_as_join and df_as_join - Reading df_absa_as_join instead of creating it
+        # df_absa_as_join = pd.read_csv(f'{self.work_dir}/step_6_join_ABSA-AS-PRINCIPAL.csv')
+        # df_as_join = pd.read_csv(f'{self.work_dir}/step_6_join_AS-PRINCIPAL.csv')
+        # # END TEMPORARY
+        
+        
+        
         # include all categories, also alcool, amargor
-        df_all_cats_pos, df_all_cats_neg = self.create_base(df_absa_as_join)
-        
-        
+        df_all_cats_pos, df_all_cats_neg = self.create_base(df_absa_as_join)   
         #
         # Step 7
         # 
@@ -176,8 +183,8 @@ class Step_6(Step):
         print(beer_style_counts)
         most_common_style_per_year = beer_style_counts.loc[beer_style_counts.groupby('year')['count'].idxmax()]
         print(most_common_style_per_year)
+        self.plot_most_common_beer_styles_per_year(most_common_style_per_year)
         
-
         # Box plot of review_general_set by sentiment
         sentiment_order = ['muito negativo', 'negativo', 'neutro', 'positivo', 'muito positivo' ]
         palette = {
@@ -517,25 +524,38 @@ class Step_6(Step):
 
 
     def generate_bar_chart(self, df: pd.DataFrame, stop_words: list, categories: list, sentiment: str):
+        
+        category_translation = {
+            "visual": "visual",
+            "aroma": "aroma",
+            "sabor": "flavor",
+            "sensação na boca": "mouthfeel",
+            "álcool": "alcohol",
+            "amargor": "bitterness"
+        }
+
+        df['category'] = df['category'].replace(category_translation)
+
+        categories = [category_translation.get(cat, cat) for cat in categories]
 
         category_colors = self.get_category_colors()
         
-        # Process data to find most common word per category and year
         results = []
+        years = np.sort(df['year'].unique())
+        
         # df = df[df['year'] >= 2014]
-        for year in df['year'].unique():
-            df_year = df[df['year'] == year]
+        # create a for year in each 2 years
+        for y in range(2, len(years), 2):
+            df_year = df[(df['year'] == years[y-1]) | (df['year'] == years[y])]
             for category in categories:
                 df_category = df_year[df_year['category'] == category]
-                word_list = df_category['aspect'].apply(lambda x: extract_entities(x, stop_words)).sum()  # Flatten the list of words
-                # word_list = df_category['aspect'].apply(extract_entities).sum()  # Flatten the list of words
+                word_list = df_category['aspect'].apply(lambda x: extract_entities(x, stop_words)).sum()
                 word_count = Counter(word_list)
                 if word_count:
                     most_common_word, count = word_count.most_common(1)[0]
-                    results.append({'year': year, 'category': category, 'word': most_common_word, 'count': count})
+                    results.append({'year': years[y], 'category': category, 'word': most_common_word, 'count': count})
 
         result_df = pd.DataFrame(results)
-        # sort result_df by year descendent then by category ascending
         result_df = result_df.sort_values(by=['year', 'category'], ascending=[True, True])
         print(result_df)
         
@@ -543,21 +563,20 @@ class Step_6(Step):
         plt.figure(figsize=(15, 6))  # Increased width from 10 to 15
         sns.set(style="whitegrid")
         
-        # Create the barplot
         barplot = sns.barplot(x='year', y='count', hue='category', data=result_df, palette=category_colors)
         
         block = 0
         i_block = 0
         num_blocks = len(result_df['year'].unique())
-       
+
         for i, patch in enumerate(barplot.patches):
-            if i >= num_blocks*6:
+            if i >= num_blocks * 6:
                 break
-            i_df = i_block * len(categories) + block 
+            i_df = i_block * len(categories) + block
             if i_df >= len(result_df) or (i > 1 and i % num_blocks == 0):
                 i_block = 0
                 block += 1
-                i_df = i_block * len(categories) + block 
+                i_df = i_block * len(categories) + block
 
             i_block += 1
                 
@@ -569,39 +588,72 @@ class Step_6(Step):
 
             # Annotate with the most common word from result_df
             barplot.text(
-                x=x, 
-                y=y + 0.5,  # Slightly above the bar
-                s=result_df['word'].iloc[i_df],  # Fetch word for this bar
-                ha='center', va='bottom', 
-                fontsize=10, color='black', weight='bold',
+                x=x,
+                y=y + 0.5,
+                s=result_df['word'].iloc[i_df],
+                ha='center', va='bottom',
+                fontsize=16, color='black', # weight='bold',
                 rotation=90
             )
-        
-        
-        
-        # plt.title('Frequência das Palavras Mais Comuns por Categoria e Ano')
-        plt.xlabel('Ano')
-        plt.ylabel('Frequência')
-        # adjust legend position to above the plot area
-        plt.legend(title='Categoria', loc='upper right', bbox_to_anchor=(1, 1), ncol=3)
-        # plt.legend(title='Categoria', loc='upper right', bbox_to_anchor=(1, 1))  # Adjusted legend position
-        
+
+        plt.xlabel('Year', fontsize=18)
+        plt.ylabel('Frequency', fontsize=18)
+        plt.legend(title='Category', loc='upper right', bbox_to_anchor=(1, 1), fontsize=16, ncol=3)
+        plt.xticks(fontsize=16)
+        plt.yticks(fontsize=16)
         plt.tight_layout()
         file_name = f'{self.work_dir}/timeline_{sentiment}.png'
         plt.savefig(file_name, bbox_inches='tight', dpi=300)
-        
+
 
     def get_category_colors(self):
-        category_colors = {
+        return {
             "visual": "Blue",
             "aroma": "Orange",
-            "sabor": "Green",
-            "sensação na boca": "Red",
-            "álcool": "Magenta",
-            "amargor": "Lime"
+            "flavor": "Green",
+            "mouthfeel": "Red",
+            "alcohol": "Magenta",
+            "bitterness": "Lime"
         }
+
+
+    def plot_most_common_beer_styles_per_year(self, df, figsize=(10, 6), palette='tab10'):
+        """
+        Plots a horizontal barplot of the most common beer style per year.
         
-        return category_colors
+        Parameters:
+        - df: DataFrame with columns ['year', 'beer_style', 'count']
+        - figsize: Tuple for figure size
+        - palette: Color palette for the bars
+        """
+        # Sort by year
+        df_sorted = df.sort_values(by='year')
+        print(df_sorted)
+        
+        # Set seaborn style
+        sns.set(style='whitegrid')
 
-
+        # Create the figure
+        plt.figure(figsize=figsize)
+        barplot = sns.barplot(
+            data=df_sorted,
+            y='count',
+            x='year',
+            hue='beer_style',
+            dodge=False,
+            palette=palette
+        )
+        
+        # # Add text labels on bars
+        # for i, row in df_sorted.iterrows():
+        #     plt.text(row['count'] + 0.5, i, f"{row['beer_style']} ({row['count']})", va='center')
+        
+        # Set titles and labels
+        plt.title('Most Common Beer Style Per Year')
+        plt.xlabel('Count')
+        plt.ylabel('Year')
+        # plt.legend(title='Beer Style', bbox_to_anchor=(1.05, 1), loc='upper left')
+        plt.tight_layout()
+        file_name = f'{self.work_dir}/styles_per_year.png'
+        plt.savefig(file_name, bbox_inches='tight', dpi=100)
 
