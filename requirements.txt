@@ -9,3 +9,5 @@ nltk
 webcolors
 seaborn
 scikit-image
+scikit-learn
+statsmodels
