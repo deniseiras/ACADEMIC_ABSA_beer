@@ -3,12 +3,12 @@
 This repository contains the methodology tasks of the paper above.
 
 
-### ABSTRACT 
+## ABSTRACT 
 
 Aspect-Based Sentiment Analysis (ABSA) enables the identification of user preferences toward specific entities in text. One of the motivations for this study is the lack of research applying ABSA with Large Language Models (LLMs) to unlabeled datasets, particularly in Portuguese. This work applies ABSA and general Sentiment Analysis (SA) to Portuguese-language beer reviews from one Brazilian website, focusing on Beer Characteristics (BC) such as aroma, flavor, and visual attributes. Due to the unlabeled nature of the dataset, an unsupervised LLM approach was adopted, testing Sabiá-3 and GPT-4 mini with zero-shot, one-shot, and few-shot prompting. A representative 22-review subset was used to evaluate configurations, with the optimal setup (Sabiá-3, one review example, all BC examples) achieving 69.09% precision, 63.33% recall, and an F1-score of 66.08%. This configuration was applied to the full dataset with 467,431 BC records. Results revealed caramel, fruity, refreshing, and high drinkability as the most positively associated BC, while watery and low drinkability were the most negative. Temporal analysis identified growth in IPA and Russian Imperial Stout styles. Findings confirm that LLM-based ABSA in Portuguese can capture nuanced consumer preferences, offering actionable insights for the Brazilian craft beer market despite dataset and reproducibility limitations.
 
 
-### Methodology 
+## Methodology 
 
 ASBA techniques were used in beer evaluation texts to identify the feeling of each CC. AS techniques were applied to identify the overall sentiment of the review. The following figure presents the overall workflow: 
 - Step 1 and Step 2 performs the tasks of data collection, analysis and pre-processing. 
