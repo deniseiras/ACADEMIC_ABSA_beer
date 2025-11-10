@@ -18,7 +18,7 @@ ASBA techniques were used in beer evaluation texts to identify the feeling of ea
 - Step 6 generates the Final bases through joining of the Main Base and the bases resulting from ABSA and SA.
 - Step 7 generates results using these bases.
 
-![Fig1  Fluxograma](https://github.com/user-attachments/assets/7596b35a-f8a8-4214-a70b-813ae33bbb99)
+![Fig1  Fluxograma](./docs/eiras1.png)
 
 
 ## General instructions
