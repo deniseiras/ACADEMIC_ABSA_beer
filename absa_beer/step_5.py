@@ -1,5 +1,5 @@
 """
-Step 4: Aspect-Based Sentiment Analysis of Beer Characteristics (CC)
+Step 5: Sentiment Analysis (SA) of reviewers
 
 :author: Denis Eiras
 

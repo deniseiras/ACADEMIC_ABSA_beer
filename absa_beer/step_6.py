@@ -1,5 +1,5 @@
 """
-Step 4: Aspect-Based Sentiment Analysis of Beer Characteristics (CC)
+Step 6: Generating Final Bases
 
 :author: Denis Eiras
 

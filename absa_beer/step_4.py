@@ -1,5 +1,5 @@
 """
-Step 4: Aspect-Based Sentiment Analysis of Beer Characteristics (CC)
+Step 4: Aspect-Based Sentiment Analysis (ABSA) of Beer Characteristics (BC)
 
 :author: Denis Eiras
 

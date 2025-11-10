@@ -20,7 +20,7 @@ class Step_3(Step):
 
    
     def run(self):
-        """Create 'Prompt Main Base and 'Main Base' (step_3.csv)
+        """Create 'Prompt Main Base' and 'Main Base' (step_3.csv)
 
         To create the 'Main Base', used for the AS and ABSA executed in ASBA (Step 4) and AS (Step 5), it was selected
         the best reviews using a prompt to achieve this.
