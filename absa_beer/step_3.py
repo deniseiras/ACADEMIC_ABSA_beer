@@ -11,7 +11,7 @@ Functions:
 import pandas as pd
 import ast
 from step import Step
-from src.openai_api import get_completion
+from Prompt_AI import Prompt_AI
 
 class Step_3(Step):
 
@@ -91,17 +91,17 @@ portuguesa que citam pelo menos uma característica de cerveja. Você não faz c
             
             if review_eval_count == reviews_per_request or i_general == i_final_eval_index-1:
                 # TODO - using prompt_sys in second argument makes the output json retunr without "[ ]"
-                response, finish_reason = get_completion(f'{prompt_sys} {prompt_user} {{ {reviews_comments} }}',model='gpt-4o-mini')
+                prompt_ai = Prompt_AI("gpt-4o-mini", f'{prompt_sys} {prompt_user} {{ {reviews_comments} }}')
+                response, finish_reason = prompt_ai.get_completion()
                 if finish_reason != 'stop':
                     print(f'Finish reason not expected: {finish_reason}')
                     exit(-1)
                 try:
                     data_list = ast.literal_eval(response)
-                    df_new = pd.DataFrame(data_list, columns=["index", "selected"])
+                    df_new = pd.DataFrame(data_list, columns=df_response.columns)
                     df_response = pd.concat([df_response, df_new], ignore_index=True)
                     # saves sometimes to do not loose work 
                     df_new.to_csv(step3_file_name, mode='a', index=False, header=False)
-                
                 except Exception as e:
                     print(f'\n\nException:{e}')
                     print(f'\nError creating df: Check:\n {response}')
