@@ -45,13 +45,13 @@ class Step_4(Step):
         print(df_base_prompts.describe())
         
         # do ABSA in Base Prompts Validation for n shots and models, to select the best combination
-        self.run_step_4_2_ABSA_select_model_shots(df_base_prompts)
+        self.run_step_4_2_ABSA_model_shots_evaluation(df_base_prompts)
         
-        # df_main_base = self.df
+        df_main_base = self.df
         print(f'- df_main_base - line count: {len(df_main_base)}')
        
         # # do ABSA for real with the best combination of models and shots
-        self.run_step_4_3_evaluate_base_principal(df_main_base)
+        self.run_step_4_3_evaluate_main_base(df_main_base)
 
 
     def run_step_4_1_base_prompts_creation(self):
@@ -125,26 +125,48 @@ class Step_4(Step):
         df = df[df['review_comment_size'] >= greatest_review_comment_size_threshold]
         print(f'- Select greatest review comment size (quantile 75%) - Parcial line count (Base Prompts): {len(df)}')
         
-        # Best and worst reviews
-        df = df[(df['review_general_rate'] >= 3) | (df['review_general_rate'] <= 2.0)]
-        print(f'- Select best and worst reviews review_general_rate<=2 or >=3 - Parcial line count (Base Prompts): {len(df)}')
         
-        # percentil 2% reviwers with most reviews “review_num_reviews” and inexperient (<=2 reviews)
-        greatest_reviewers_threshold = df['review_num_reviews'].quantile(0.98) 
-        df = df[ (df['review_num_reviews'] >= greatest_reviewers_threshold) | (df['review_num_reviews'] <= 2)]
-        print(f'- Select experients (quantile 2%) and inexperients (<=2 reviews) - Parcial line count (Base Prompts): {len(df)}')
-
-        # select only one register per review_user column on df
-        df = df.groupby('review_user').head(1)
-        print(f'- Select maximum of one review per user - Parcial line count (Base Prompts): {len(df)}')
+        # group the reviews by year
+        df['review_year'] = pd.to_datetime(df['review_datetime']).dt.year
+        df = df.groupby('review_year')
         
-        # select max 5 registers per beer_style column on df
-        df = df.groupby('beer_style').head(3)
-        print(f'- Select maxiumum of reviews per beer_style - Parcial line count (Base Prompts): {len(df)}')
+        # for each group if year, filter: 
+        for year in df.groups.keys():
+            df_year = df.get_group(year)
+            print(f'\nProcessing year: {year} - Initial line count: {len(df_year)}')
+            
+            # select only one register per review_user column on df;
+            df_year = df_year.groupby('review_user').head(1)
+            print(f'- Select maximum of one reviews per user - Parcial line count (Base Prompts): {len(df_year)}')
+            
+            # Best and worst reviews
+            df_year = df_year[(df_year['review_general_rate'] >= 3) | (df_year['review_general_rate'] <= 2.0)]
+            print(f'- Select best and worst reviews review_general_rate<=2 or >=3 - Parcial line count (Base Prompts): {len(df_year)}')
+            
+            # select max 5 registers per beer_style column on df
+            df_year = df_year.groupby('beer_style').head(1)
+            print(f'- Select maxiumum of reviews per beer_style - Parcial line count (Base Prompts): {len(df_year)}')
         
+            # # percentil 2% reviwers with most reviews “review_num_reviews” and inexperient (<=2 reviews)
+            # greatest_reviewers_threshold = df_year['review_num_reviews'].quantile(0.90)
+            # df_year = df_year[ (df_year['review_num_reviews'] >= greatest_reviewers_threshold) | (df_year['review_num_reviews'] <= 10)]
+            # print(f'- Select experients (quantile 2%) and inexperients (<=2 reviews) - Parcial line count (Base Prompts): {len(df_year)}')  
+            
+            if 'df_final' in locals():
+                df_final = pd.concat([df_final, df_year], ignore_index=True)
+            else:
+                df_final = df_year.copy()
+                
+        df = df_final.copy()
+            
+      
         
-        df = df.sort_values(by=['beer_style', 'review_general_rate', 'review_num_reviews'])
-        print(f'- Final line count (Base Prompts): {len(df)}')
+        # select maximum of 6 reviews by year
+        df = df.groupby('review_year').head(6)
+        print(f'\nSelect maximum of 6 reviews by year - Parcial line count (Base Prompts): {len(df)}')
+        
+        df = df.sort_values(by=['review_datetime', 'review_general_rate', 'review_num_reviews'])
+        print(f'\nFinal line count (Base Prompts Evaluation): {len(df)}')
         
         df.to_csv(f'{self.work_dir}/step_4_1__base_prompts.csv', index=False)
         return df
