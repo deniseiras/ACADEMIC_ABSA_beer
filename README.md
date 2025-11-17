@@ -64,13 +64,7 @@ pip install -r requirements.txt
 ~~~
 
 
-## Configuring the system
-
-Configure the Python paths:
-~~~bash
-cd ~/ACADEMIC_ABSA_beer
-export PYTHONPATH=./:../PORTFOLIO_py_openai_api/:../PORTFOLIO_py_maritaca_api/
-~~~
+## Configuring the system once
 
 Create a env file named .env in your ~/ACADEMIC_ABSA_beer and and set your working path.
 ~~~bash
@@ -124,7 +118,9 @@ you may not need to run all the steps. I. e. the Steps from Step 1 to Step 3 are
 If you want to run from the Step 4 (ABSA), you need to comment the calling of the Steps 1 to 3 in absa_beer.py file
 
 To run all the Steps (except the commented calls):
-~~~
+~~~bash
+cd ~/ACADEMIC_ABSA_beer
+export PYTHONPATH=./:../PORTFOLIO_py_openai_api/:../PORTFOLIO_py_maritaca_api/
 python absa_beer/absa_beer.py 
 ~~~
 
