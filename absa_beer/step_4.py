@@ -23,9 +23,8 @@ class Step_4(Step):
     def run(self):
         """
         This function runs Step 4 of the Aspect-Based Sentiment Analysis of Beer Characteristics.
-        It reads the step_3.csv (Main Base) containing the reviews for the previous step, and then creates the 
-        "Base Prompts", used to test models and nshots by testing different prompts. Finally, runs the best prompt in
-        the entire Base (Main Base)
+        It reads the step_3.csv (Main Base) containing the reviews for the previous step, creates the prompts and then
+        test models and nshots by testing different prompts. Finally, runs the best prompt in the entire Base (Main Base)
 
         Args:
                 self (object): The object instance that contains the data.
@@ -37,76 +36,25 @@ class Step_4(Step):
         file = f'{self.work_dir}/step_3.csv'
         self.read_csv(file)
         
-        # # Create "Base Selecao de Prompts" for creating one and few shot prompts based on step_3.csv
-        df_selecao_prompts = self.run_step_4_1_base_selecao_prompts()
+        # Base Prompts Creation: for creating one and few shot prompts based on step_3.csv
+        df_selecao_prompts = self.run_step_4_1_base_prompts_creation()
         print(df_selecao_prompts.describe())
         
-        # # create "Base Prompts", used to test models and nshots
-        df_base_prompts = self.run_step_4_1_base_prompts(df_selecao_prompts)
+        # Base Prompts Validation: used to test models and nshots
+        df_base_prompts = self.run_step_4_1_base_prompts_validation(df_selecao_prompts)
         print(df_base_prompts.describe())
         
-        # do ABSA in Base Prompts for n shots and models, to select the best combination
+        # do ABSA in Base Prompts Validation for n shots and models, to select the best combination
         self.run_step_4_2_ABSA_select_model_shots(df_base_prompts)
         
-        
-        df_main_base = self.df
+        # df_main_base = self.df
         print(f'- df_main_base - line count: {len(df_main_base)}')
        
-        # do ABSA for real with the best combination of models and shots
+        # # do ABSA for real with the best combination of models and shots
         self.run_step_4_3_evaluate_base_principal(df_main_base)
 
-        
-    def run_step_4_1_base_prompts(self, reviews_for_prompts_df: pd.DataFrame):
-        """
-        This function selects reviews for Prompt ABSA based on certain criteria.
-        Creates the "Base Prompts" base, for testing prompts zero, one and few shots.
-        Parameters:
-            self (object): The object instance that contains the data.
-        Returns:
-            pandas.DataFrame: A DataFrame containing the selected reviews. The DataFrame is sorted by beer style, 
-            review general rate, and review number of reviews.
-        """            
-       
-        # Base Prompts creation
-        print(f'Step 4.1 - Base Prompts creation')
-        print(f'- Initial line count: {len(self.df)}')
-        df = self.df
 
-        # remove registers of df containing reviews_for_prompts_df registers
-        df = df[~df.isin(reviews_for_prompts_df)]
-        print(f'- Removing registers from reviews_for_prompts_df - Parcial line count (Base Prompts): {len(df)}')
-        
-        # review_comment size >= 75% of the greatest sizes 
-        greatest_review_comment_size_threshold = df['review_comment_size'].quantile(0.75) 
-        df = df[df['review_comment_size'] >= greatest_review_comment_size_threshold]
-        print(f'- Select greatest review comment size - Parcial line count (Base Prompts): {len(df)}')
-        
-        # Best and worst reviews
-        df = df[(df['review_general_rate'] >= 4.0) | (df['review_general_rate'] <= 2.0)]
-        print(f'- Select best and worst reviews - Parcial line count (Base Prompts): {len(df)}')
-        
-        # percentil 1% reviwers with most reviews “review_num_reviews” and inexperient
-        greatest_reviewers_threshold = df['review_num_reviews'].quantile(0.99) 
-        df = df[ (df['review_num_reviews'] >= greatest_reviewers_threshold) | (df['review_num_reviews'] == 1)]
-        print(f'- Select experients and inexperients - Parcial line count (Base Prompts): {len(df)}')
-
-        # select only one register per review_user column on df
-        df = df.groupby('review_user').head(1)
-        print(f'- Select only one register per review_user - Parcial line count (Base Prompts): {len(df)}')
-        
-        # select only one register per beer_style column on df
-        df = df.groupby('beer_style').head(1)
-        print(f'- Select only one register per beer_style - Parcial line count (Base Prompts): {len(df)}')
-        
-        
-        df = df.sort_values(by=['beer_style', 'review_general_rate', 'review_num_reviews'])
-        print(f'- Final line count (Base Prompts): {len(df)}')
-        
-        df.to_csv(f'{self.work_dir}/step_4_1__base_prompts.csv', index=False)
-        return df
-
-
-    def run_step_4_1_base_selecao_prompts(self):
+    def run_step_4_1_base_prompts_creation(self):
         """
         This function selects reviews for creating Prompts ABSA based on certain criteria.
         The 16 reviews are selected manually from this base regarding the constraints
@@ -120,18 +68,89 @@ class Step_4(Step):
 
         print(f'Step 4.1 - Selections of reviews for Prompts ABSA')
         styles_for_prompt = ['India Pale Ale (IPA)', 'German Weizen', 'Porter', 'Witbier']
-        df = self.df[ self.df['beer_style'].isin(styles_for_prompt) & 
+        pre_selected_reviews = self.df[ self.df['beer_style'].isin(styles_for_prompt) & 
                                      ((self.df['review_general_rate'] >= 4) | (self.df['review_general_rate'] <= 2)) & 
                                      # TODO check 368
                                      ((self.df['review_num_reviews'] >= 368) | (self.df['review_num_reviews'] == 1))]
+        pre_selected_reviews = pre_selected_reviews.sort_values(by=['beer_style', 'review_general_rate', 'review_num_reviews'])
+        
+        # df is the initial base for selection of reviews for prompts
+        
+        # Then do the manual selection of reviews from the previous pre_selected_reviews DataFrame
+        selected_review_comments_starting_with_the_strings = [
+            "De coloração amarelada, turva. Espuma de difícil formação, altamente efervescente e sem duração. Bom aroma",
+            "Temperatura de degustação: Cinco graus Celsius. Cor: Amarelo-palha medianamente turva. Creme: Média formação",
+            "Uma weiss significativamente inferior ao padrão do estilo. E nem falo em comparação com as bávaras mas com a",
+            "Apresentou coloração dourada com espuma branca de média formação e longa persistência.",
+            "Cor amarela clara, com certa turbidez, de cara fugindo um pouco da expectativa do estilo. Aroma maltado com",
+            "Pataqueparéu, não sei o que dizer sobre esta cerveja! Sorvida e provada logo em seguida a perigosa. Coloração âmbar",
+            "Rótulo agradável, em garrafa âmbar bojuda. Tampa sem rótulo, dando um aspecto desleixado à cerveja. As cervejas bastante lupuladas sempre têm uma agradável",
+            "Cerveja com sabor de cerveja forte. Lúpulo e álcool presentes que dão o perfeito sabor de cerveja India",
+            "Coloração negra opaca. Espuma bege de alta formação e pouca duração. Aroma de caramelo e açúcar mascavo. Sabor quase",
+            "Bebida desenvolvida em parceria com a Cachaçaria Nacional - maior varejista de cachaças do mundo, sediada em Belo"
+        ]
+        
+        manual_selected_df = pd.DataFrame()
+        for starting_string in selected_review_comments_starting_with_the_strings:
+            selected_row = pre_selected_reviews[pre_selected_reviews['review_comment'].str.startswith(starting_string)].head(1)
+            manual_selected_df = pd.concat([manual_selected_df, selected_row], ignore_index=True)
+        
+        manual_selected_df.to_csv(f'{self.work_dir}/step_4_1__base_for_prompts_selection.csv')
+        
+        return manual_selected_df
+    
+        
+    def run_step_4_1_base_prompts_validation(self, reviews_for_prompts_df: pd.DataFrame):
+        """
+        This function selects reviews for Prompt ABSA based on certain criteria.
+        Creates the "Base Prompts Lalidation", for testing prompts zero, one and few shots.
+        Parameters:
+            self (object): The object instance that contains the data.
+        Returns:
+            pandas.DataFrame: A DataFrame containing the selected reviews. The DataFrame is sorted by beer style, 
+            review general rate, and review number of reviews.
+        """            
+       
+        # Base Prompts creation
+        print(f'Step 4.1 - Base Prompts Validation: creating')
+        print(f'- Initial line count: {len(self.df)}')
+        df = self.df
+
+        # remove registers of df containing reviews_for_prompts_df registers, to not influence on validation
+        df = df[~df.isin(reviews_for_prompts_df)]
+        print(f'- Removing registers from reviews_for_prompts_df - Parcial line count (Base Prompts): {len(df)}')
+        
+        # review_comment size >= 75% of the greatest sizes 
+        greatest_review_comment_size_threshold = df['review_comment_size'].quantile(0.75) 
+        df = df[df['review_comment_size'] >= greatest_review_comment_size_threshold]
+        print(f'- Select greatest review comment size (quantile 75%) - Parcial line count (Base Prompts): {len(df)}')
+        
+        # Best and worst reviews
+        df = df[(df['review_general_rate'] >= 3) | (df['review_general_rate'] <= 2.0)]
+        print(f'- Select best and worst reviews review_general_rate<=2 or >=3 - Parcial line count (Base Prompts): {len(df)}')
+        
+        # percentil 2% reviwers with most reviews “review_num_reviews” and inexperient (<=2 reviews)
+        greatest_reviewers_threshold = df['review_num_reviews'].quantile(0.98) 
+        df = df[ (df['review_num_reviews'] >= greatest_reviewers_threshold) | (df['review_num_reviews'] <= 2)]
+        print(f'- Select experients (quantile 2%) and inexperients (<=2 reviews) - Parcial line count (Base Prompts): {len(df)}')
+
+        # select only one register per review_user column on df
+        df = df.groupby('review_user').head(1)
+        print(f'- Select maximum of one review per user - Parcial line count (Base Prompts): {len(df)}')
+        
+        # select max 5 registers per beer_style column on df
+        df = df.groupby('beer_style').head(3)
+        print(f'- Select maxiumum of reviews per beer_style - Parcial line count (Base Prompts): {len(df)}')
+        
+        
         df = df.sort_values(by=['beer_style', 'review_general_rate', 'review_num_reviews'])
+        print(f'- Final line count (Base Prompts): {len(df)}')
         
-        df.to_csv(f'{self.work_dir}/step_4_1__base_for_prompts_selection.csv')
-        
+        df.to_csv(f'{self.work_dir}/step_4_1__base_prompts.csv', index=False)
         return df
 
 
-    def run_step_4_2_ABSA_select_model_shots(self, base_prompts_df):
+    def run_step_4_2_ABSA_model_shots_evaluation(self, base_prompts_df):
 
         reviews_per_request = 20
         is_for_each_CC = True
@@ -142,7 +161,7 @@ class Step_4(Step):
                 self.run_ABSA('step_4_2', base_prompts_df, model, nshots, reviews_per_request, is_num_shots_for_each_CC = is_for_each_CC)
                 
                 
-    def run_step_4_3_evaluate_base_principal(self, df_main_base):
+    def run_step_4_3_evaluate_main_base(self, df_main_base):
             
         best_model = 'sabia-3'
         best_nshots = 1
@@ -243,6 +262,7 @@ class Step_4(Step):
         df_response = df_response.sort_values(by=['index', 'aspect'])
         df_response.to_csv(n_shot_file_name, index=False)
 
+
     def step_4_1_get_prompt_zero_shot(self):
             
         print(f'Step 4.1 - "Prompt ABSA zero-shot" creation')
@@ -254,6 +274,7 @@ Cada avaliação a ser avaliada está compreendida entre chaves. Cada item cont�
 Não faça comentários, apenas gere a saída dos campos extraídos no formato a seguir: ['index','aspecto','categoria','sentimento'], \
 """
         return prompt_sys
+
 
     def step_4_1_get_prompt_few_shots(self, prompt_zero_shot: str, num_shots: int, is_num_shots_for_each_CC: bool = False):
         """
@@ -320,54 +341,6 @@ drinkability e refrescância absurda! Excelente breja!! \
 "
 """
 
-# not used - reduce size of prompt
-#         #
-#         # - inexperienced - low rate
-#         # Thiago Meireles	1	1.7	
-#         style1_inexp_lowrate = """
-# "A cerveja é bem docinha; minha opinião sobre ela, no entanto, é um pouco amarga. Produzida em meio à febre \
-# de cervejas artesanais que atingiu a burguesada do Rio, o rótulo foi metido goela abaixo do consumidor pelos principais pontos de venda de \
-# cervejas especiais da cidade, inclusive supermercados como o Zona Sul, em que é possível comprar boas brejas, como a Coruja, por exemplo. \
-# Nas prateleiras, a Niña, uma Wit Bier, ocupa mais espaço que todas as outras, inclusive as da Ambev, por isso é impossível não notá-la. Pra \
-# quem tem um paladar mais sensível, pode ser até boa posto que é doce, com gosto bem forte de limão - dizem no rótulo ser da variedade \
-# siciliano. Mas uma garrafa, que tem meros 300 ml, já é suficiente para enjoar do sabor. O dulçor esconde um peso, uma sensação de estufamento \
-# que vem pouco tempo após o consumo, defeito inadmissível para uma cerveja que se propõe leve acima de qualquer outra característica. O final na \
-# boca e na garganta é ácido. No fim, não acho que vale o preço de 11 reais na promoção no Zona Sul - o normal é encontrá-la por 14. Se daqui a \
-# pouco ela estiver sendo vendida a 8 pelo menos vamos saber que não vai durar muito. Sorte aos produtores que, certamente, têm dinheiro e boas \
-# conexões no mundo do varejo e da mídia.
-# ['0', 'dulçor', 'sabor', 'positivo'],
-# ['0', 'limão forte', 'sabor', 'positivo'],
-# ['0', 'ácido', 'sabor', 'neutro']
-# "
-# """
-
-# Big text from inexperienced - removed
-#         #
-#         # - inexperienced - high rate
-#         # Robson Grespan	1	5	
-#         style1_inexp_highrate = """
-# "Excelente cerveja de trigo receita tipo belga. Produzida com os ingredientes: Semente de coentro, casca de \
-# laranja, alfarroba, baunilha, Tamara e anis estrelado. Extremamente aromática e refrescante. O alfarroba foi inserido para ter uma espuma densa\
-# e aveludada. Uma excelente cerveja para agradar os iniciantes e cervejeiros. Refermentada na própria garrafa.  Alfarroba na Cerveja 65 anos \
-# Apesar de não ter a fama do cacau, a alfarroba já era usada pelos egípcios há mais de 5 mil anos. Por ser naturalmente doce, dispensa o uso de \
-# açúcar na fabricação e no consumo dos produtos. Sem falar que também não possui os estimulantes cafeína e teobromina e é rica em vitaminas e \
-# minerais. Na cerveja “65 anos”, produz efeito espessante, dando mais corpo e textura aveludada. Além disso, os açúcares digeridos pelas leveduras\
-# trazem aromas delicados e únicos. Baunilha de Madagascar na Cerveja 65 anos A baunilha é a vagem seca de uma orquídea. O perfil aromático depende\
-# das condições de cultivo e de preparação, mas também das variedades ou espécies utilizadas. A mais tradicional é a Baunilha Bourboun, utilizada \
-# nesta receita e produzida em Madagascar. A idéia de utilização dela na cerveja “65 anos” é atuar no processo de refinamento dos aromas complexos \
-# provenientes da levedura e reestruturação do flavor da cerveja com características únicas da baunilha. Tâmara na Cerveja 65 anos As tâmaras são \
-# digeridas completamente depois de um longo período, pois são ricas em açúcares complexos; esta característica é bem apreciada por aqueles que \
-# necessitam preservar um ritmo enérgico durante atividades físicas ou mentais, normalmente em desportos que testam a resistência ou em esportes de \
-# duração prolongada. No caso da cerveja, esses açúcares, por serem complexos, não serão digeridos completamente pela Levedura, gerando um sabor e \
-# leve dulçor bem prazeroso na cerveja.
-# [['0', 'espuma densa', 'visual', 'positivo'],
-#  ['0', 'espuma aveludada', 'visual', 'positivo'],
-#  ['0', 'Baunilha de Madagascar', 'aroma', 'positivo'],
-#  ['0', 'Tâmara', 'sabor', 'positivo'],
-#  ['0', 'encorpada', 'sensação na boca', 'neutro'],
-#  ['0', 'textura aveludada', 'sensação na boca', 'neutro'],
-# ]]"
-# """
         #
         #
         # ***** German Weizen
@@ -420,36 +393,6 @@ picantes. Tem corpo médio, carbonatação moderada e sensação refrescante. Ex
 ['0', 'refrescância alta', 'sensação na boca', 'positivo'] \
 "
 """
-
-# Bad text - excluded
-#         #
-#         # - inexperienced - low rate
-#         # deivis fontes	1	1	
-#         style2_inexp_lowrate = """
-# "deixei na geladeira por um dia e meio a garrafa em pé, percebi que ela nao apresenta tanto corpo caracteristicos \
-# das cervejas de trigo, talvez por ser uma cerveja industrial
-# ['0', 'corpo baixo', 'sensação na boca', 'negativo'],
-# "
-# """
-
-# removed - reduce size of the prompt 
-#         #
-#         # - inexperienced - high rate 
-#         # Marcelo Azambuja	1	4,9	
-#         style2_inexp_highrate = """
-# "A cor amarelada bem turva é algo que me agrada muito em uma Weiss, e a Alenda atende este quesito como poucas. \
-# Eu adquiri minhas amostras diretamente com o produtor. Já vieram resfriadas e eu as mantive assim até chegarem na minha geladeira. Desta \
-# forma, posso afirmar que mantém as características perfeitamente. O gosto forte, marcante, e a cremosidade do líquido são excelentes. \
-# Degustamos nossas amostras em nossa casa de praia (Capão da Canoa/RS) com um vizinho alemão que passa as férias no Brasil, e a frase do \
-# alemão (funcionário - diretor - da Mercedes-Benz, lá na Matriz em Affalterbach, um cara extremamente exigente e que conhece as principais\ 
-# cervejarias e países do mundo): pode parabenizar este produtor, muito boa. Depois, por duas vezes, logo após ele tomar um pouco da cerveja,\
-# ele parava a conversa e dizia: nossa, muito boa. Para quem conhece europeus, eles não são de muita gentileza, muito menos de falar algo \
-# que não seja totalmente sincero. Esta avaliação me ajudou muito a poder considerar a Alenda uma cerveja realmente acima da média.
-# ['0', 'cor do líquido amarelo', 'visual', 'muito positivo'],
-# ['0', 'turva', 'visual', 'muito positivo'],
-# ['0', 'cremosidade', 'sensação na boca', 'muito positivo']
-# "
-# """
 
         #
         #
@@ -609,38 +552,6 @@ harmonia. Parabéns aos envolvidos! ???? \
 "
 """
 
-# removed - reduce size of the prompt
-#         #
-#         # - inexperienced - low rate
-#         # FABIO NASCIMENTO	1	1,5	
-#         style4_inexp_lowrate = """
-# "Fiz a degustação da Zehn Bier - Porter e aqui vai o que percebi. Estou iniciando no mundo cervejeiro e estou tentando \
-# aprender a degustar estas ótimas cerveja. Lá vai: Aroma, achei adocicado,sabor pouco amarga, pouca espuma(Acho que fiz algo errado, pois no \
-# rótulo diz que a espuma é duradoura;não cremosa ou sem nenhuma cremosidade. Cerveja leve. Senti um pouco do sabor torrado mas não o de caramelo.\
-# Sabor que deixou amargo duradouro.
-# ['0', 'formação de espuma baixa', 'visual', 'neutro'],
-# ['0', 'espuma não cremosa', 'visual', 'neutro'],
-# ['0', 'dulçor leve', 'aroma', 'neutro'],
-# ['0', 'amargor leve', 'amargor', 'neutro'],
-# ['0', 'espuma não cremosa', 'sensação na boca', 'neutro']
-# "
-# """
-
-# removed - not necessary
-#         #
-#         # - inexperienced - high rate
-#         # Tiago Cosmai	1	4,6	
-#         style4_inexp_highrate = """
-# "Cerveja deliciosa, aroma e sabor de café presentes do início ao fim, sensação de estalar no meio da língua com a baixa \
-# gaseificação, cor forte típica das Porters com uma espuma pouco densa de cor caramelo escuro tão característica como o corpo da cerveja, para \
-# mim a Colorado Demoiselle é a melhor nacional.
-# [['0', '', 'visual', 'neutro'],
-#  ['0', '', 'aroma', 'muito positivo'],
-#  ['0', '', 'sabor', 'positivo'],
-#  ['0', '', 'amargor', 'positivo'],
-#  ['0', '', 'sensação na boca', 'muito positivo'],
-# ]]"
-# """
 
         prompt_few_shots = prompt_zero_shot + """ \
 Abaixo, entre aspas, exemplos de textos de avaliações e o resultado esperado. \
@@ -670,7 +581,6 @@ Ignore o valor do campo index dos exemplos, pois são apenas para mostrar o form
                 prompt_few_shots += style4_exp_highrate
 
         else:
-            #  ONE SHOT EXAMPLE 1 CC !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         
             # - inexperienced - low rate
             # Thiago Coelho	1	1,5	
@@ -698,16 +608,6 @@ que degustei. Pergunto: é uma IPA ou é uma American Pale Ale lupulada em exces
 ['0', 'formação de espuma ótima', 'visual', 'muito positivo'] \
 "
 """
-    
-       
-        # not used
-        # prompt_few_shots += style1_inexp_lowrate
-        # prompt_few_shots += style1_inexp_highrate
-        # prompt_few_shots += style2_inexp_lowrate
-        # prompt_few_shots += style2_inexp_highrate
-        # prompt_few_shots += style3_inexp_lowrate
-        # prompt_few_shots += style4_inexp_lowrate
-        # prompt_few_shots += style4_inexp_highrate
 
         return prompt_few_shots
 
