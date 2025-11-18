@@ -86,3 +86,7 @@ class Step:
         # cleaned_string = re.sub(r'[^\x20-\x7E]', '', cleaned_string)
         
         return cleaned_string
+
+    def get_category_list(self):
+        categories = ["visual", "aroma", "sabor", "álcool", "amargor", "sensação na boca"]
+        return categories

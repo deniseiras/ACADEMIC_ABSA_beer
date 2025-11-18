@@ -16,6 +16,7 @@ from step_3 import Step_3
 from step_4 import Step_4
 from step_5 import Step_5
 from step_6 import Step_6
+from step_7 import Step_7
 
 
 # Main function
@@ -46,6 +47,9 @@ def main():
     
     step_6 = Step_6()
     step_6.run()
+    
+    step_7 = Step_7()
+    step_7.run()
 
 if __name__ == "__main__":
     main()
