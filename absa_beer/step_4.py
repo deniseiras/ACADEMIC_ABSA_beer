@@ -36,12 +36,12 @@ class Step_4(Step):
         file = f'{self.work_dir}/step_3.csv'
         self.read_csv(file)
         
-        # Base Prompts Creation: for creating one and few shot prompts based on step_3.csv
-        df_selecao_prompts = self.run_step_4_1_base_prompts_creation()
+        # Creates the Base Prompts Creation: for creating one and few shot prompts based on step_3.csv
+        df_selecao_prompts = self.run_step_4_1_create_base_prompts_creation()
         print(df_selecao_prompts.describe())
         
-        # Base Prompts Validation: used to test models and nshots
-        df_base_prompts = self.run_step_4_1_base_prompts_validation(df_selecao_prompts)
+        # Creates the Base Prompts Validation: used to test models and nshots
+        df_base_prompts = self.run_step_4_1_create_base_prompts_validation(df_selecao_prompts)
         print(df_base_prompts.describe())
         
         # do ABSA in Base Prompts Validation for n shots and models, to select the best combination
@@ -54,7 +54,7 @@ class Step_4(Step):
         self.run_step_4_3_evaluate_main_base(df_main_base)
 
 
-    def run_step_4_1_base_prompts_creation(self):
+    def run_step_4_1_create_base_prompts_creation(self):
         """
         This function selects reviews for creating Prompts ABSA based on certain criteria.
         The 16 reviews are selected manually from this base regarding the constraints
@@ -100,10 +100,10 @@ class Step_4(Step):
         return manual_selected_df
     
         
-    def run_step_4_1_base_prompts_validation(self, reviews_for_prompts_df: pd.DataFrame):
+    def run_step_4_1_create_base_prompts_validation(self, reviews_for_prompts_df: pd.DataFrame):
         """
         This function selects reviews for Prompt ABSA based on certain criteria.
-        Creates the "Base Prompts Lalidation", for testing prompts zero, one and few shots.
+        Creates the "Base Prompts Validation", for testing prompts zero, one and few shots.
         Parameters:
             self (object): The object instance that contains the data.
         Returns:
@@ -173,17 +173,33 @@ class Step_4(Step):
 
 
     def run_step_4_2_ABSA_model_shots_evaluation(self, base_prompts_df):
+        """
+        This function runs the different models and shots configurations for validation using the 
+        base_prompts_validation_annotated.csv 
+        """
 
-        reviews_per_request = 20
-        is_for_each_CC = True
+        reviews_per_request = 6
+        num_reviews_to_process = 102
 
-        for model in ['sabia-3', 'gpt-4o-mini']:
-            # for is_num_shots_for_each_CC in [True, False]:
-            for nshots in [1, 3]:
-                self.run_ABSA('step_4_2', base_prompts_df, model, nshots, reviews_per_request, is_num_shots_for_each_CC = is_for_each_CC)
+        # 1 - nshots = 0
+        # 2 - for model in ['sabia-3']: , for use_all_BC in [True]: , for nshots in [1]:
+        # 3 - for model in ['sabia-3']: , for use_all_BC in [True]: , for nshots in [3]:
+        # 4 - for model in ['sabia-3']: , for use_all_BC in [False]: , for nshots in [1]:
+        # 5 - for model in ['sabia-3']: , for use_all_BC in [False]: , for nshots in [3]:
+        for model in ['sabia-3']:
+        # for model in ['sabia-3', 'gpt-4o-mini']:
+            # for use_all_BC in [True, False]:
+            for use_all_BC in [False]:
+                # for nshots in [1, 3]:
+                for nshots in [3]:
+                    df_response = self.run_ABSA('step_4_2', base_prompts_df, model, nshots, reviews_per_request,
+                                  num_reviews_to_process=num_reviews_to_process, use_all_BC = use_all_BC)
+                    # Compare df_response with the base_prompts_validation_annotated.csv
+                    # ...
                 
                 
     def run_step_4_3_evaluate_main_base(self, df_main_base):
+        "The best model will run on the whole dataset"
             
         best_model = 'sabia-3'
         best_nshots = 1
@@ -191,28 +207,31 @@ class Step_4(Step):
         reviews_per_request = 10
         is_num_shots_for_each_CC = False
         self.run_ABSA('step_4_3', df_main_base, best_model, best_nshots, 
-                      reviews_per_request=reviews_per_request, num_reviews_to_process=num_reviews_to_process, is_num_shots_for_each_CC = is_num_shots_for_each_CC)
+                      reviews_per_request=reviews_per_request, num_reviews_to_process=num_reviews_to_process, use_all_BC = is_num_shots_for_each_CC)
         
         print("Please, copy the best file of combination of this step to step_4.csv")
        
             
-    def run_ABSA(self, step_name, df_base, model, nshots, reviews_per_request = 10, num_reviews_to_process = None, is_num_shots_for_each_CC = False):
+    def run_ABSA(self, step_name, df_base, model, nshots, reviews_per_request = 10, num_reviews_to_process = None, use_all_BC = True):
 
+        # i_initial_eval_index = 92  # 0 in from begining, otherwise index of last processed element + 1
+        # i_final_eval_index = 94
+        
         i_initial_eval_index = 0  # 0 in from begining, otherwise index of last processed element + 1
-        i_final_eval_index = min(num_reviews_to_process, len(df_base))
+        i_final_eval_index = min(num_reviews_to_process, len(df_base)) # or number of last element to be processed + 1
         
         prompt_zero = self.step_4_1_get_prompt_zero_shot()
         if nshots == 0:
             prompt_n_shot = prompt_zero
         else:
-            prompt_n_shot = self.step_4_1_get_prompt_few_shots(prompt_zero, nshots, is_num_shots_for_each_CC)
+            prompt_n_shot = self.step_4_1_get_prompt_few_shots(prompt_zero, nshots, use_all_BC)
         
         print(f'Running {step_name} with model {model} and {nshots} shots ...')
         review_eval_count = 1
         reviews_comments = ''
         response_columns = ['index', 'aspect', 'category', 'sentiment']
         df_response = pd.DataFrame(columns=response_columns)
-        n_shot_file_name = f'{self.work_dir}/{step_name}__{nshots}shots_{model}_{"per_CC" if is_num_shots_for_each_CC else ""}_{reviews_per_request}rev_per_req_from_{i_initial_eval_index}.csv'
+        n_shot_file_name = f'{self.work_dir}/{step_name}__{nshots}shots_{model}_{"all_BC" if use_all_BC else f"{nshots}_BC"}_{reviews_per_request}rev_per_req_from_{i_initial_eval_index}.csv'
         
         df_response.to_csv(n_shot_file_name, index=False, header=True)
         error_count = 0
@@ -241,17 +260,38 @@ class Step_4(Step):
                     response = response.strip()
                     
                     # fix for sabia-3 alucination with "[[[" in begining
-                    # pattern = r'^[\s]*\[\s*\[\s*\['
-                    # response = re.sub(pattern, '[[',response)
+                    pattern = r'^[\s]*\[\s*\[\s*\['
+                    match = re.search(pattern, response)
+                    if match:
+                        response = re.sub(pattern, '[[',response)
+                    else:                        
+                        # fix for alucination where not exists '[[' at the beginning
+                        match = re.search(r'^(\s*[\r\n]*\[\s*[\r\n]*\[)', response)
+                        if not match:
+                            response = f'[{response}'
+                    
+                    # fix for sabia-3 alucination with "]]]" in the end
+                    pattern = r'\s*[\r\n]*\]\s*[\r\n]*\]\s*[\r\n]*\]$'
+                    match = re.search(pattern, response)
+                    if match:
+                        response = re.sub(pattern, ']]',response)
+                    else:
+                        # fix for alucination where not exists ']]' at the end
+                        match = re.search(r'\s*[\r\n]*\]\s*[\r\n]*\]$', response)
+                        if not match:
+                            response = f'{response}]'
                     
                     # fix for sabia-3 alucination with "]],[" each review
-                    pattern = r'\]\s*[\r\n]*\]\s*[\r\n]*,\s*[\r\n]*\[\s*[\r\n]*'
-                    response = re.sub(pattern, '],',response)
+                    pattern = r'\s*[\r\n]*\]\s*[\r\n]*\]\s*[\r\n]*,\s*[\r\n]*\[\s*[\r\n]*'
+                    response = re.sub(pattern, '],[',response)
                     
-                    # fix for alucination where not exists '[[' at the beginning and ']]' at the end
-                    match = re.search(r'^(\s*[\r\n]*\[\s*[\r\n]*\[)', response)
-                    if not match:
-                        response = f'[{response}]'
+                    # fix for sabia-3 alucination with "],[[" each review
+                    pattern = r'\s*[\r\n]*\]\s*[\r\n]*,\s*[\r\n]*\[\s*[\r\n]*\[\s*[\r\n]*'
+                    response = re.sub(pattern, '],[',response)
+                    
+                    # fix for sabia-3 alucination with "][" each review
+                    pattern = r'\s*[\r\n]*\]\s*[\r\n]*\[\s*[\r\n]*'
+                    response = re.sub(pattern, '],[',response)
                     
                     # fix for gpt allucionations
                     response = response.replace('```json', '')
@@ -283,6 +323,8 @@ class Step_4(Step):
         df_response['index'] = df_response['index'].astype(int)
         df_response = df_response.sort_values(by=['index', 'aspect'])
         df_response.to_csv(n_shot_file_name, index=False)
+        
+        return df_response
 
 
     def step_4_1_get_prompt_zero_shot(self):
@@ -298,7 +340,7 @@ Não faça comentários, apenas gere a saída dos campos extraídos no formato a
         return prompt_sys
 
 
-    def step_4_1_get_prompt_few_shots(self, prompt_zero_shot: str, num_shots: int, is_num_shots_for_each_CC: bool = False):
+    def step_4_1_get_prompt_few_shots(self, prompt_zero_shot: str, num_shots: int, use_all_BC: bool = True):
         """
         This function creates the Prompt ABSA few-shots based on the Prompt ABSA zero-shot.
         The reviews were selected manually from base step_4_1__base_for_prompts_selection.csv, considering good and bad reviews 
@@ -580,7 +622,7 @@ Abaixo, entre aspas, exemplos de textos de avaliações e o resultado esperado. 
 Ignore o valor do campo index dos exemplos, pois são apenas para mostrar o formato de saída.
 """
    
-        if not is_num_shots_for_each_CC:
+        if use_all_BC:
             if num_shots == 1:
                 prompt_few_shots += style3_inexp_lowrate
             
