@@ -187,7 +187,6 @@ class Step_7(Step):
         # Generate timeline
         df_neg = self.get_most_common_word_by_year(df_all_cats_neg, stop_words_all_cats, 'negativo')
         df_pos = self.get_most_common_word_by_year(df_all_cats_pos, stop_words_all_cats, 'positivo')
-        
         self.plot_mirrored_timeline(df_neg, df_pos)
         
         # # Multinomial Logistic Regression for sentiment_sa
@@ -583,7 +582,7 @@ class Step_7(Step):
             palette=self.get_category_colors_translated(),
             orient='h',
             ax=ax_pos,
-            alpha=0.5
+            alpha=0.7
         )
 
         # Annotate POSITIVE bars
@@ -622,21 +621,18 @@ class Step_7(Step):
 
         ax_neg.set_xlabel("Frequency")
         ax_pos.set_xlabel("Frequency")
-        ax_neg.set_ylabel("Year")
+        ax_pos.set_ylabel("")
         max_count = max(df_pos['count'].max(), df_neg['count'].abs().max())
         ax_neg.set_xlim(-max_count, 0)   # negative bars on left
         ax_pos.set_xlim(0, max_count)    # positive bars on right
         # Set x-axis ticks to show positive numbers
         ticks = ax_neg.get_xticks()
         ax_neg.set_xticklabels([f"{abs(int(tick))}" for tick in ticks])
-
-
         # Hide duplicated legend from left plot
         ax_neg.legend_.remove()
 
         # Put one combined legend on the top right inside the plot
         handles, labels = ax_pos.get_legend_handles_labels()
-        # ax_pos.legend(handles, labels, title="Category", fontsize=12, bbox_to_anchor=(1.05, 1))
         ax_pos.legend(
             handles, labels,
             title="Category",
@@ -644,14 +640,11 @@ class Step_7(Step):
             loc='upper right',          # inside plot
             frameon=True,               # optional, add frame
             facecolor='white',          # legend background
-            framealpha=0.8              # slightly transparent
+            framealpha=0.7              # slightly transparent
         )
-
-
 
         # Remove y-axis labels from right so center feels centered
         plt.setp(ax_pos.get_yticklabels(), visible=False)
-        # fig.suptitle("Timeline of Most Frequent Aspects (Negative vs Positive)", fontsize=20)
         plt.tight_layout()
 
         fig.savefig(f"{self.work_dir}/timeline_combined.png", dpi=300, bbox_inches='tight')
