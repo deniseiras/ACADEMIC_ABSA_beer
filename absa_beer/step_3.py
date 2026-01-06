@@ -25,18 +25,6 @@ class Step_3(Step):
         To create the 'Main Base', used for the AS and ABSA executed in ASBA (Step 4) and AS (Step 5), it was selected
         the best reviews using a prompt to achieve this.
 
-        The step_3_data_analysis sorted the step_2.csv by beer style, review_general_rate and review_num_reviews to create step_3_data_analysis.csv.
-
-        The idea was check manually for good and bad reviews texts. In the records selection for this task was considered:
-        - beer_style. Diferent beer styles shows diferent caracteristics
-        - good and bad review_general_rate. This helps the IA system to check both good and bad beers
-        - review_num_reviews. This tells the review was writen by an experienced user. Some reviews was selected from the good or bad reviewers.
-
-        So, for each style, it was selected 1 good and 1 bad reviews for 1 good and 1 bad reviewers. (4 reviews by style)
-        It was considered 4 different styles for this task, so 16 reviews was selected to create the prompt "Seleção de reviews":
-        - American IPA
-        ...
-
         Args:
             None
 
