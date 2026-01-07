@@ -297,6 +297,9 @@ class Step_4(Step):
         and computes macro Precision / Recall / F1.
         """
 
+        # TESTING ************************
+        # base_prompts_df = pd.read_csv(f"{self.work_dir}/step_4_1__base_prompts_TEST.csv", sep=",", encoding="utf-8")
+        
         annotated_file = f"{self.work_dir}/base_prompts_validation_annotated.csv"
         df_gold = pd.read_csv(annotated_file, sep=",", encoding="utf-8")
 
@@ -320,26 +323,26 @@ class Step_4(Step):
                     file_basename=f'{self.work_dir}/step_4_2____{nshots}shots_{model}_{"all_BC" if use_all_BC else f"{nshots}_BC"}'
                     error_count = 0
                     
-                    # df_pred = self.run_ABSA(
-                    #     'step_4_2',
-                    #     base_prompts_df,
-                    #     model,
-                    #     nshots,
-                    #     reviews_per_request,
-                    #     num_reviews_to_process=num_reviews_to_process,
-                    #     use_all_BC=use_all_BC
-                    # )
+                    df_pred = self.run_ABSA(
+                        'step_4_2',
+                        base_prompts_df,
+                        model,
+                        nshots,
+                        reviews_per_request,
+                        num_reviews_to_process=num_reviews_to_process,
+                        use_all_BC=use_all_BC
+                    )
                     
                     # TESTING 
-                    df_pred = pd.read_csv(f"{self.work_dir}/step_4_2__3shots_sabia-3_3_BC_6rev_per_req_from_0.csv", sep=",", encoding="utf-8")
+                    # df_pred = pd.read_csv(f"{self.work_dir}/step_4_2__3shots_sabia-3_3_BC_6rev_per_req_from_0.csv", sep=",", encoding="utf-8")
                     
                     per_review_scores = []
 
-                    test_count = 0
+                    # test_count = 0
                     for idx in df_gold['index'].unique():
-                        if test_count > 0:
-                            break
-                        test_count += 1
+                        # if test_count > 0:
+                        #     break
+                        # test_count += 1
 
                         gold_i = df_gold[df_gold['index'] == idx]
                         pred_i = df_pred[df_pred['index'] == idx]
@@ -573,13 +576,11 @@ Você é um extrator de aspectos de cerveja. Do texto, extraia os ‘aspectos’
 dentre os valores: ‘visual’, ‘aroma’, ‘sabor’, ‘amargor’, ‘álcool’ e ‘sensação na boca’. Extraia o ‘sentimento’ dentre os valores ‘muito negativo’, ‘negativo’, ‘neutro’, \
 ‘positivo’ ou ‘muito positivo’ para cada par aspecto/categoria. \
 Regras:
-- Remover a categoria do texto do aspecto. Exemplo: "Aroma de caramelo", categoria: "aroma", aspecto: "caramelo" \
 - Dividir o aspecto na menor unidade possível. Por exemplo: "Espuma branca de média duração" deve gerar dois aspectos: "espuma branca" e "espuma de média duração", ambas categorias: "visual" \
-- Não considerar o sentimento do aspecto como sendo positivo ou negativo usando o entendimento do modelo pré-treinado. Somente considerer o sentimento explícito para cada aspecto. \
-    - Exemplo: "Aroma cítrico" não indica um aspecto positivo. "Ótimo aroma cítrico." indica um sentimento muito positivo. \
+- O entendimento sobre o sentimento deve considerer o sentimento relacionado para cada aspecto. Não considerar o entendimento do modelo pré-treinado ou o sentimento geral do texto. Usar "neutro" para aspectos que não possuem um sentimento relacionado. \
+    - Exemplo: "Aroma cítrico" deve ser sentimento "neutro". "Bom aroma cítrico." indica um sentimento "positivo" para o aspecto. Outro exemplo: "muito Sabor de café": não indica um sentimento muito positivo, mas "sabor de café muito agradável" sim. \
     - Exceções: "espuma de boa retenção" e os adjetivos "refrescante", "cremosa", "balanceado", "equilibrado" sempre indicam um sentimento positivo. \
-- Não considerar o sentimento geral do texto para os aspectos. Somente considerer o sentimento explícito para cada aspecto. Usar "neutro" para aspectos que não possuem sentimento explícito.
- 
+- Se houver expressãoes parecidas com "o sabor acompanha o aroma", copiar todos os aspectos da categoria "aroma" para a categoria "sabor", bem como o sentimento relacionado. \
 Cada avaliação a ser avaliada está compreendida entre chaves. Cada item contém "index", que registra o índice da avaliação e "review_comment", que é o texto a ser avaliado. \
 Não faça comentários, apenas gere a saída dos campos extraídos no formato a seguir: ['index','aspecto','categoria','sentimento'], \
 """
