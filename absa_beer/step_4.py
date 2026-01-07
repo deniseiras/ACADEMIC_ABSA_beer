@@ -12,6 +12,7 @@ import ast
 from step import Step
 from Prompt_AI import Prompt_AI
 import re
+import json
 
 class Step_4(Step):
 
@@ -47,11 +48,11 @@ class Step_4(Step):
         # do ABSA in Base Prompts Validation for n shots and models, to select the best combination
         self.run_step_4_2_ABSA_model_shots_evaluation(df_base_prompts)
         
-        df_main_base = self.df
-        print(f'- df_main_base - line count: {len(df_main_base)}')
+        # df_main_base = self.df
+        # print(f'- df_main_base - line count: {len(df_main_base)}')
        
-        # # do ABSA for real with the best combination of models and shots
-        self.run_step_4_3_evaluate_main_base(df_main_base)
+        # # # do ABSA for real with the best combination of models and shots
+        # self.run_step_4_3_evaluate_main_base(df_main_base)
 
 
     def run_step_4_1_create_base_prompts_creation(self):
@@ -172,30 +173,267 @@ class Step_4(Step):
         return df
 
 
-    def run_step_4_2_ABSA_model_shots_evaluation(self, base_prompts_df):
+    def llm_batch_equivalence_judge(self, pred_df, gold_df):
         """
-        This function runs the different models and shots configurations for validation using the 
-        base_prompts_validation_annotated.csv 
+        Compares all predicted vs gold tuples for a single index in one LLM call.
+        Returns a list of match dicts, enriched with category_ok and sentiment_ok.
         """
 
+        pred_list = [
+            {
+                "id": i,
+                "aspect": r["aspect"],
+                "category": r["category"],
+                "sentiment": r["sentiment"],
+            }
+            for i, r in pred_df.reset_index(drop=True).iterrows()
+        ]
+
+        gold_list = [
+            {
+                "id": i,
+                "aspect": r["aspect"],
+                "category": r["category"],
+                "sentiment": r["sentiment"],
+            }
+            for i, r in gold_df.reset_index(drop=True).iterrows()
+        ]
+
+        # Contexto para o LLM (aspecto + categoria)
+        pred_list_categories = [
+            {
+                "id": r["id"],
+                "aspect": r["aspect"],
+                "category": r["category"],
+            }
+            for r in pred_list
+        ]
+
+        gold_list_categories = [
+            {
+                "id": r["id"],
+                "aspect": r["aspect"],
+                "category": r["category"],
+            }
+            for r in gold_list
+        ]
+
+        prompt = f"""
+    Você é um avaliador de equivalência semântica para ABSA.
+
+    TAREFA:
+    Compare TODOS os aspectos previstos com TODOS os aspectos anotados.
+    Faça pareamentos um-para-um (cada item anotado no máximo uma vez).
+
+    O critério principal é a EQUIVALÊNCIA SEMÂNTICA DO ASPECTO.
+    As CATEGORIAS devem ser usadas APENAS como critério de DESEMPATE
+    quando houver mais de um aspecto semanticamente equivalente.
+
+    Exemplo:
+    O aspecto "caramelo" pode existir nas categorias "sabor" e "aroma".
+    Nesses casos, faça o pareamento correto usando a categoria para diferenciar.
+
+    RETORNE APENAS um JSON válido no formato:
+
+    [
+    {{
+        "gold_id": <int>,
+        "pred_id": <int>,
+        "aspect_ok": <true|false>
+    }}
+    ]
+
+    REGRAS:
+    - Não repita gold_id.
+    - aspect_ok = true se existir algum aspecto previsto semanticamente equivalente.
+    - Se não houver pareamento, aspect_ok = false e pred_id = -1.
+
+    ASPECTOS ANOTADOS (com categorias):
+    {gold_list_categories}
+
+    ASPECTOS PREVISTOS (com categorias):
+    {pred_list_categories}
+    """
+
+        prompt_ai = Prompt_AI("gpt-4o-mini", prompt)
+        response, finish_reason = prompt_ai.get_completion()
+
+        if finish_reason != "stop":
+            return []
+
+        try:
+            response = response.replace("```json", "").replace("```", "").strip()
+            matches = json.loads(response)
+        except Exception:
+            return []
+
+        # Pós-processamento determinístico
+        for m in matches:
+            m["category_ok"] = False
+            m["sentiment_ok"] = False
+
+            if m["aspect_ok"] is True:
+                pred_id = m["pred_id"]
+                gold_id = m["gold_id"]
+
+                pred_item = pred_list[pred_id]
+                gold_item = gold_list[gold_id]
+
+                if pred_item["category"] == gold_item["category"]:
+                    m["category_ok"] = True
+                    if pred_item["sentiment"] == gold_item["sentiment"]:
+                        m["sentiment_ok"] = True
+
+
+        return matches
+
+
+
+                    
+
+    def run_step_4_2_ABSA_model_shots_evaluation(self, base_prompts_df):
+        """
+        Runs ABSA outputs against base_prompts_validation_annotated.csv
+        and computes macro Precision / Recall / F1.
+        """
+
+        annotated_file = f"{self.work_dir}/base_prompts_validation_annotated.csv"
+        df_gold = pd.read_csv(annotated_file, sep=",", encoding="utf-8")
+
+        results = []
+
         reviews_per_request = 6
-        num_reviews_to_process = 102
+        num_reviews_to_process = 6
 
         # 1 - nshots = 0
         # 2 - for model in ['sabia-3']: , for use_all_BC in [True]: , for nshots in [1]:
         # 3 - for model in ['sabia-3']: , for use_all_BC in [True]: , for nshots in [3]:
         # 4 - for model in ['sabia-3']: , for use_all_BC in [False]: , for nshots in [1]:
         # 5 - for model in ['sabia-3']: , for use_all_BC in [False]: , for nshots in [3]:
-        for model in ['sabia-3']:
+
         # for model in ['sabia-3', 'gpt-4o-mini']:
             # for use_all_BC in [True, False]:
-            for use_all_BC in [False]:
                 # for nshots in [1, 3]:
+        for model in ['sabia-3']:
+            for use_all_BC in [False]:
                 for nshots in [3]:
-                    df_response = self.run_ABSA('step_4_2', base_prompts_df, model, nshots, reviews_per_request,
-                                  num_reviews_to_process=num_reviews_to_process, use_all_BC = use_all_BC)
-                    # Compare df_response with the base_prompts_validation_annotated.csv
-                    # ...
+                    file_basename=f'{self.work_dir}/step_4_2____{nshots}shots_{model}_{"all_BC" if use_all_BC else f"{nshots}_BC"}'
+                    error_count = 0
+                    
+                    # df_pred = self.run_ABSA(
+                    #     'step_4_2',
+                    #     base_prompts_df,
+                    #     model,
+                    #     nshots,
+                    #     reviews_per_request,
+                    #     num_reviews_to_process=num_reviews_to_process,
+                    #     use_all_BC=use_all_BC
+                    # )
+                    
+                    # TESTING 
+                    df_pred = pd.read_csv(f"{self.work_dir}/step_4_2__3shots_sabia-3_3_BC_6rev_per_req_from_0.csv", sep=",", encoding="utf-8")
+                    
+                    per_review_scores = []
+
+                    test_count = 0
+                    for idx in df_gold['index'].unique():
+                        if test_count > 0:
+                            break
+                        test_count += 1
+
+                        gold_i = df_gold[df_gold['index'] == idx]
+                        pred_i = df_pred[df_pred['index'] == idx]
+
+                        # ignore non existing reviews in the validation set or in the predicted set
+                        if len(gold_i) == 0 or len(pred_i) == 0:
+                            continue
+
+                        matches = self.llm_batch_equivalence_judge(pred_i, gold_i)
+                        if len(matches) == 0:
+                            error_count += 1
+                            print(f'Error count: {error_count}')
+                            continue
+                            
+                        print("matches", matches)
+
+                        a_correct = sum(1 for m in matches if m["aspect_ok"])
+                        b_correct = sum(1 for m in matches if m["aspect_ok"] and m["category_ok"])
+                        c_correct = sum(
+                            1 for m in matches
+                            if m["aspect_ok"] and m["category_ok"] and m["sentiment_ok"]
+                        )
+
+                        a_total_pred = len(pred_i)
+                        print("a_total_pred", a_total_pred)
+                        a_total_gold = len(gold_i)
+                        print("a_total_gold", a_total_gold)
+                        
+                        print("a_correct", a_correct)
+                        print("b_correct", b_correct)
+                        print("c_correct", c_correct)
+
+                        if a_correct >= a_total_pred:
+                            prec_a = 1
+                        else:
+                            prec_a = a_correct / a_total_pred if a_total_pred else 0
+                        rec_a = a_correct / a_total_gold if a_total_gold else 0
+
+                        if b_correct >= a_total_pred:
+                            prec_b = 1
+                        else:
+                            prec_b = b_correct / a_total_pred if a_total_pred else 0
+                        rec_b = b_correct / a_total_gold if a_total_gold else 0
+
+                        if c_correct >= a_total_pred:
+                            prec_c = 1
+                        else:
+                            prec_c = c_correct / a_total_pred if a_total_pred else 0
+                        rec_c = c_correct / a_total_gold if a_total_gold else 0
+
+                        per_review_scores.append({
+                            "prec_a": prec_a, "rec_a": rec_a,
+                            "prec_b": prec_b, "rec_b": rec_b,
+                            "prec_c": prec_c, "rec_c": rec_c
+                        })
+                        
+
+                    df_scores = pd.DataFrame(per_review_scores)
+                    df_scores_filename = f'{file_basename}_scores.csv'
+                    df_scores.to_csv(df_scores_filename, index=False)
+                    
+                    print("df_scores", df_scores)
+
+                    def f1(p, r):
+                        return 2*p*r/(p+r) if (p+r) > 0 else 0
+
+                    metrics = {
+                        "model": model,
+                        "nshots": nshots,
+                        "use_all_BC": use_all_BC,
+
+                        "precision_a": df_scores["prec_a"].mean(),
+                        "recall_a": df_scores["rec_a"].mean(),
+                        "f1_a": f1(df_scores["prec_a"].mean(), df_scores["rec_a"].mean()),
+
+                        "precision_b": df_scores["prec_b"].mean(),
+                        "recall_b": df_scores["rec_b"].mean(),
+                        "f1_b": f1(df_scores["prec_b"].mean(), df_scores["rec_b"].mean()),
+
+                        "precision_c": df_scores["prec_c"].mean(),
+                        "recall_c": df_scores["rec_c"].mean(),
+                        "f1_c": f1(df_scores["prec_c"].mean(), df_scores["rec_c"].mean()),
+                    }
+
+                    results.append(metrics)
+
+        df_results = pd.DataFrame(results)
+        df_results_filename=f'{file_basename}_evaluation_metrics.csv'
+        df_results.to_csv(df_results_filename, index=False)
+
+        print("\nStep 4.2 evaluation completed")
+        print(df_results)
+                
+                    
                 
                 
     def run_step_4_3_evaluate_main_base(self, df_main_base):
@@ -334,6 +572,14 @@ class Step_4(Step):
 Você é um extrator de aspectos de cerveja. Do texto, extraia os ‘aspectos’ e a ‘categoria’ relacionados aos aspectos da cerveja. As categorias devem estar \
 dentre os valores: ‘visual’, ‘aroma’, ‘sabor’, ‘amargor’, ‘álcool’ e ‘sensação na boca’. Extraia o ‘sentimento’ dentre os valores ‘muito negativo’, ‘negativo’, ‘neutro’, \
 ‘positivo’ ou ‘muito positivo’ para cada par aspecto/categoria. \
+Regras:
+- Remover a categoria do texto do aspecto. Exemplo: "Aroma de caramelo", categoria: "aroma", aspecto: "caramelo" \
+- Dividir o aspecto na menor unidade possível. Por exemplo: "Espuma branca de média duração" deve gerar dois aspectos: "espuma branca" e "espuma de média duração", ambas categorias: "visual" \
+- Não considerar o sentimento do aspecto como sendo positivo ou negativo usando o entendimento do modelo pré-treinado. Somente considerer o sentimento explícito para cada aspecto. \
+    - Exemplo: "Aroma cítrico" não indica um aspecto positivo. "Ótimo aroma cítrico." indica um sentimento muito positivo. \
+    - Exceções: "espuma de boa retenção" e os adjetivos "refrescante", "cremosa", "balanceado", "equilibrado" sempre indicam um sentimento positivo. \
+- Não considerar o sentimento geral do texto para os aspectos. Somente considerer o sentimento explícito para cada aspecto. Usar "neutro" para aspectos que não possuem sentimento explícito.
+ 
 Cada avaliação a ser avaliada está compreendida entre chaves. Cada item contém "index", que registra o índice da avaliação e "review_comment", que é o texto a ser avaliado. \
 Não faça comentários, apenas gere a saída dos campos extraídos no formato a seguir: ['index','aspecto','categoria','sentimento'], \
 """
