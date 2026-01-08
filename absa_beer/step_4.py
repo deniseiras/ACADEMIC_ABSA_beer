@@ -175,8 +175,9 @@ class Step_4(Step):
 
     def llm_batch_equivalence_judge(self, pred_df, gold_df):
         """
-        Compares all predicted vs gold tuples for a single index in one LLM call.
-        Returns a list of match dicts, enriched with category_ok and sentiment_ok.
+        Itera sobre aspectos anotados (gold), chamando o LLM uma vez por gold.
+        Cada chamada recebe 1 gold e todos os preds ainda não utilizados.
+        Produz pareamentos um-para-um e remove preds pareados.
         """
 
         pred_list = [
@@ -199,91 +200,105 @@ class Step_4(Step):
             for i, r in gold_df.reset_index(drop=True).iterrows()
         ]
 
-        # Contexto para o LLM (aspecto + categoria)
-        pred_list_categories = [
-            {
-                "id": r["id"],
-                "aspect": r["aspect"],
-                "category": r["category"],
-            }
-            for r in pred_list
-        ]
+        remaining_preds = pred_list.copy()
+        matches = []
 
-        gold_list_categories = [
-            {
-                "id": r["id"],
-                "aspect": r["aspect"],
-                "category": r["category"],
-            }
-            for r in gold_list
-        ]
+        for gold in gold_list:
 
-        prompt = f"""
+            if not remaining_preds:
+                matches.append(
+                    {
+                        "gold_id": gold["id"],
+                        "pred_id": -1,
+                        "aspect_ok": False,
+                        "category_ok": False,
+                        "sentiment_ok": False,
+                    }
+                )
+                continue
+
+            gold_payload = {
+                "id": gold["id"],
+                "aspect": gold["aspect"],
+                "category": gold["category"],
+            }
+
+            pred_payload = [
+                {
+                    "id": p["id"],
+                    "aspect": p["aspect"],
+                    "category": p["category"],
+                }
+                for p in remaining_preds
+            ]
+
+            prompt = f"""
     Você é um avaliador de equivalência semântica para ABSA.
 
     TAREFA:
-    Compare TODOS os aspectos previstos com TODOS os aspectos anotados.
-    Faça pareamentos um-para-um (cada item anotado no máximo uma vez).
-
-    O critério principal é a EQUIVALÊNCIA SEMÂNTICA DO ASPECTO.
-    As CATEGORIAS devem ser usadas APENAS como critério de DESEMPATE
-    quando houver mais de um aspecto semanticamente equivalente.
-
-    Exemplo:
-    O aspecto "caramelo" pode existir nas categorias "sabor" e "aroma".
-    Nesses casos, faça o pareamento correto usando a categoria para diferenciar.
+    Compare o ASPECTO ANOTADO com os ASPECTOS PREVISTOS e identifique
+    no máximo UM pareamento semântico.
 
     RETORNE APENAS um JSON válido no formato:
 
-    [
     {{
         "gold_id": <int>,
-        "pred_id": <int>,
-        "aspect_ok": <true|false>
+        "pred_id": <int | -1>,
+        "aspect_ok": <true|false>,
+        "category_ok": <true|false>
     }}
-    ]
 
     REGRAS:
-    - Não repita gold_id.
-    - aspect_ok = true se existir algum aspecto previsto semanticamente equivalente.
-    - Se não houver pareamento, aspect_ok = false e pred_id = -1.
+    - Use somente os ids fornecidos.
+    - Se NÃO houver aspecto previsto semanticamente equivalente:
+        - aspect_ok = false
+        - pred_id = -1
+        - category_ok = false
+    - Se houver aspecto semanticamente equivalente:
+        - aspect_ok = true
+        - pred_id = id correspondente
+        - category_ok = true SOMENTE se as categorias forem semanticamente equivalentes.
 
-    ASPECTOS ANOTADOS (com categorias):
-    {gold_list_categories}
+    ASPECTO ANOTADO:
+    {gold_payload}
 
-    ASPECTOS PREVISTOS (com categorias):
-    {pred_list_categories}
+    ASPECTOS PREVISTOS:
+    {pred_payload}
     """
 
-        prompt_ai = Prompt_AI("gpt-4o-mini", prompt)
-        response, finish_reason = prompt_ai.get_completion()
+            prompt_ai = Prompt_AI("gpt-4o-mini", prompt)
+            response, finish_reason = prompt_ai.get_completion()
 
-        if finish_reason != "stop":
-            return []
+            if finish_reason != "stop":
+                continue
 
-        try:
-            response = response.replace("```json", "").replace("```", "").strip()
-            matches = json.loads(response)
-        except Exception:
-            return []
+            try:
+                response = response.replace("```json", "").replace("```", "").strip()
+                match = json.loads(response)
+            except Exception:
+                continue
 
-        # Pós-processamento determinístico
-        for m in matches:
-            m["category_ok"] = False
-            m["sentiment_ok"] = False
+            # Pós-processamento mínimo de segurança
+            match["sentiment_ok"] = False
 
-            if m["aspect_ok"] is True:
-                pred_id = m["pred_id"]
-                gold_id = m["gold_id"]
+            if match["aspect_ok"] is True and match["pred_id"] != -1:
+                pred_id = match["pred_id"]
 
-                pred_item = pred_list[pred_id]
-                gold_item = gold_list[gold_id]
+                pred_item = next(
+                    (p for p in remaining_preds if p["id"] == pred_id), None
+                )
 
-                if pred_item["category"] == gold_item["category"]:
-                    m["category_ok"] = True
-                    if pred_item["sentiment"] == gold_item["sentiment"]:
-                        m["sentiment_ok"] = True
+                if pred_item is not None:
+                    # Remove pred utilizado
+                    remaining_preds = [
+                        p for p in remaining_preds if p["id"] != pred_id
+                    ]
 
+                    # Avaliação determinística de sentimento
+                    if pred_item["sentiment"] == gold["sentiment"]:
+                        match["sentiment_ok"] = True
+
+            matches.append(match)
 
         return matches
 
@@ -303,10 +318,9 @@ class Step_4(Step):
         annotated_file = f"{self.work_dir}/base_prompts_validation_annotated.csv"
         df_gold = pd.read_csv(annotated_file, sep=",", encoding="utf-8")
 
-        results = []
 
         reviews_per_request = 6
-        num_reviews_to_process = 6
+        num_reviews_to_process = 108
 
         # 1 - nshots = 0
         # 2 - for model in ['sabia-3']: , for use_all_BC in [True]: , for nshots in [1]:
@@ -315,26 +329,26 @@ class Step_4(Step):
         # 5 - for model in ['sabia-3']: , for use_all_BC in [False]: , for nshots in [3]:
 
         # for model in ['sabia-3', 'gpt-4o-mini']:
-            # for use_all_BC in [True, False]:
-                # for nshots in [1, 3]:
+        #     for use_all_BC in [True, False]:
+        #         for nshots in [1, 3]:
         for model in ['sabia-3']:
             for use_all_BC in [False]:
                 for nshots in [3]:
                     file_basename=f'{self.work_dir}/step_4_2____{nshots}shots_{model}_{"all_BC" if use_all_BC else f"{nshots}_BC"}'
                     error_count = 0
                     
-                    df_pred = self.run_ABSA(
-                        'step_4_2',
-                        base_prompts_df,
-                        model,
-                        nshots,
-                        reviews_per_request,
-                        num_reviews_to_process=num_reviews_to_process,
-                        use_all_BC=use_all_BC
-                    )
+                    # df_pred = self.run_ABSA(
+                    #     'step_4_2',
+                    #     base_prompts_df,
+                    #     model,
+                    #     nshots,
+                    #     reviews_per_request,
+                    #     num_reviews_to_process=num_reviews_to_process,
+                    #     use_all_BC=use_all_BC
+                    # )
                     
                     # TESTING 
-                    # df_pred = pd.read_csv(f"{self.work_dir}/step_4_2__3shots_sabia-3_3_BC_6rev_per_req_from_0.csv", sep=",", encoding="utf-8")
+                    df_pred = pd.read_csv(f"{self.work_dir}/step_4_2__3shots_sabia-3_3_BC_6rev_per_req_from_0.csv", sep=",", encoding="utf-8")
                     
                     per_review_scores = []
 
@@ -403,9 +417,25 @@ class Step_4(Step):
                     df_scores = pd.DataFrame(per_review_scores)
                     df_scores_filename = f'{file_basename}_scores.csv'
                     df_scores.to_csv(df_scores_filename, index=False)
+
+        # write final results to csv
+        results = []
+        for model in ['sabia-3', 'gpt-4o-mini']:
+            for use_all_BC in [True, False]:
+                for nshots in [1, 3]:
+                    file_basename=f'{self.work_dir}/step_4_2____{nshots}shots_{model}_{"all_BC" if use_all_BC else f"{nshots}_BC"}'
+                    df_scores_filename = f'{file_basename}_scores.csv'
+                    # df_scores.to_csv(df_scores_filename, index=False)
+                    
+                    # open the df_scores_filename to df_scores
+                    try:
+                        df_scores = pd.read_csv(df_scores_filename, sep=",", encoding="utf-8")
+                    except:
+                        print(f'Error reading {df_scores_filename}')
+                        continue
                     
                     print("df_scores", df_scores)
-
+                    
                     def f1(p, r):
                         return 2*p*r/(p+r) if (p+r) > 0 else 0
 
@@ -430,13 +460,11 @@ class Step_4(Step):
                     results.append(metrics)
 
         df_results = pd.DataFrame(results)
-        df_results_filename=f'{file_basename}_evaluation_metrics.csv'
+        df_results_filename = f'{self.work_dir}/step_4_2____evaluation_metrics.csv'
         df_results.to_csv(df_results_filename, index=False)
 
         print("\nStep 4.2 evaluation completed")
         print(df_results)
-                
-                    
                 
                 
     def run_step_4_3_evaluate_main_base(self, df_main_base):
@@ -582,7 +610,7 @@ Regras:
     - Exceções: "espuma de boa retenção" e os adjetivos "refrescante", "cremosa", "balanceado", "equilibrado" sempre indicam um sentimento positivo. \
 - Se houver expressãoes parecidas com "o sabor acompanha o aroma", copiar todos os aspectos da categoria "aroma" para a categoria "sabor", bem como o sentimento relacionado. \
 Cada avaliação a ser avaliada está compreendida entre chaves. Cada item contém "index", que registra o índice da avaliação e "review_comment", que é o texto a ser avaliado. \
-Não faça comentários, apenas gere a saída dos campos extraídos no formato a seguir: ['index','aspecto','categoria','sentimento'], \
+Não faça comentários, apenas gere a saída dos campos extraídos no formato a seguir: ['index','aspecto','categoria','sentimento'],\
 """
         return prompt_sys
 
