@@ -13,6 +13,7 @@ from step import Step
 from Prompt_AI import Prompt_AI
 import re
 import json
+import time
 
 class Step_4(Step):
 
@@ -173,7 +174,7 @@ class Step_4(Step):
         return df
 
 
-    def llm_batch_equivalence_judge(self, pred_df, gold_df):
+    def llm_batch_equivalence_judge(self, pred_df, gold_df, error_count, prompt_ai):
         """
         Itera sobre aspectos anotados (gold), chamando o LLM uma vez por gold.
         Cada chamada recebe 1 gold e todos os preds ainda não utilizados.
@@ -265,17 +266,21 @@ class Step_4(Step):
     ASPECTOS PREVISTOS:
     {pred_payload}
     """
-
-            prompt_ai = Prompt_AI("gpt-4o-mini", prompt)
+            prompt_ai.prompt = prompt
             response, finish_reason = prompt_ai.get_completion()
 
             if finish_reason != "stop":
+                error_count += 1
+                print(f'Error count: {error_count}')
                 continue
-
+            
             try:
                 response = response.replace("```json", "").replace("```", "").strip()
                 match = json.loads(response)
             except Exception:
+                print(f'Error parsing response: {response}')
+                error_count += 1
+                print(f'Error count: {error_count}')
                 continue
 
             # Pós-processamento mínimo de segurança
@@ -300,7 +305,7 @@ class Step_4(Step):
 
             matches.append(match)
 
-        return matches
+        return matches, error_count
 
 
 
@@ -317,6 +322,8 @@ class Step_4(Step):
         
         annotated_file = f"{self.work_dir}/base_prompts_validation_annotated.csv"
         df_gold = pd.read_csv(annotated_file, sep=",", encoding="utf-8")
+        
+        prompt_ai = Prompt_AI("gpt-4o-mini", None)
 
 
         reviews_per_request = 6
@@ -328,33 +335,45 @@ class Step_4(Step):
         # 4 - for model in ['sabia-3']: , for use_all_BC in [False]: , for nshots in [1]:
         # 5 - for model in ['sabia-3']: , for use_all_BC in [False]: , for nshots in [3]:
 
-        # for model in ['sabia-3', 'gpt-4o-mini']:
-        #     for use_all_BC in [True, False]:
-        #         for nshots in [1, 3]:
         for model in ['sabia-3']:
-            for use_all_BC in [False]:
+            for use_all_BC in [True]:
                 for nshots in [3]:
+        # for model in ['sabia-3']:
+        # for model in ['gpt-4o-mini']:
+        #   for use_all_BC in [False]:
+        #       for nshots in [1, 3]:
                     file_basename=f'{self.work_dir}/step_4_2____{nshots}shots_{model}_{"all_BC" if use_all_BC else f"{nshots}_BC"}'
                     error_count = 0
                     
-                    # df_pred = self.run_ABSA(
-                    #     'step_4_2',
-                    #     base_prompts_df,
-                    #     model,
-                    #     nshots,
-                    #     reviews_per_request,
-                    #     num_reviews_to_process=num_reviews_to_process,
-                    #     use_all_BC=use_all_BC
-                    # )
+                    df_pred = self.run_ABSA(
+                        'step_4_2',
+                        base_prompts_df,
+                        model,
+                        nshots,
+                        reviews_per_request,
+                        num_reviews_to_process=num_reviews_to_process,
+                        use_all_BC=use_all_BC
+                    )
                     
                     # TESTING 
-                    df_pred = pd.read_csv(f"{self.work_dir}/step_4_2__3shots_sabia-3_3_BC_6rev_per_req_from_0.csv", sep=",", encoding="utf-8")
+                    # file_basename_read_done_exp=f'{self.work_dir}/step_4_2__{nshots}shots_{model}_{"all_BC" if use_all_BC else f"{nshots}_BC"}_6rev_per_req_from_0.csv'
+                    # df_pred = pd.read_csv(file_basename_read_done_exp, sep=",", encoding="utf-8")
+                    # print(f'\n\n****************************\ndf_pred - line count: {len(df_pred)} \n\n')
+                    # continue
+                    
+                    df_scores_filename = f'{file_basename}_scores.csv'
+                    try:
+                        print(f'Reading {df_scores_filename}')
+                        df_scores = pd.read_csv(df_scores_filename, sep=",", encoding="utf-8")
+                    except:
+                        print(f'{df_scores_filename} not exists')
+                        df_scores = None
                     
                     per_review_scores = []
 
                     # test_count = 0
                     for idx in df_gold['index'].unique():
-                        # if test_count > 0:
+                        # if test_count > 1:
                         #     break
                         # test_count += 1
 
@@ -363,12 +382,16 @@ class Step_4(Step):
 
                         # ignore non existing reviews in the validation set or in the predicted set
                         if len(gold_i) == 0 or len(pred_i) == 0:
+                            print(f'No reviews found for review {idx} !!!')
+                            continue
+                        
+                        if df_scores is not None and idx in df_scores['index'].unique():
+                            print(f'Found review {idx} in df_scores, skipping')
                             continue
 
-                        matches = self.llm_batch_equivalence_judge(pred_i, gold_i)
+                        matches, error_count = self.llm_batch_equivalence_judge(pred_i, gold_i, error_count, prompt_ai)
                         if len(matches) == 0:
-                            error_count += 1
-                            print(f'Error count: {error_count}')
+                            print(f'No matches found for review {idx}')
                             continue
                             
                         print("matches", matches)
@@ -381,45 +404,38 @@ class Step_4(Step):
                         )
 
                         a_total_pred = len(pred_i)
-                        print("a_total_pred", a_total_pred)
                         a_total_gold = len(gold_i)
-                        print("a_total_gold", a_total_gold)
+                        a_correct = min(a_correct, a_total_pred)
+                        b_correct = min(b_correct, a_total_pred)
+                        c_correct = min(c_correct, a_total_pred)
                         
+                        print("a_total_pred", a_total_pred)
+                        print("a_total_gold", a_total_gold)
                         print("a_correct", a_correct)
                         print("b_correct", b_correct)
                         print("c_correct", c_correct)
 
-                        if a_correct >= a_total_pred:
-                            prec_a = 1
-                        else:
-                            prec_a = a_correct / a_total_pred if a_total_pred else 0
-                        rec_a = a_correct / a_total_gold if a_total_gold else 0
-
-                        if b_correct >= a_total_pred:
-                            prec_b = 1
-                        else:
-                            prec_b = b_correct / a_total_pred if a_total_pred else 0
-                        rec_b = b_correct / a_total_gold if a_total_gold else 0
-
-                        if c_correct >= a_total_pred:
-                            prec_c = 1
-                        else:
-                            prec_c = c_correct / a_total_pred if a_total_pred else 0
-                        rec_c = c_correct / a_total_gold if a_total_gold else 0
-
                         per_review_scores.append({
-                            "prec_a": prec_a, "rec_a": rec_a,
-                            "prec_b": prec_b, "rec_b": rec_b,
-                            "prec_c": prec_c, "rec_c": rec_c
+                            "index": idx,
+                            "a_correct": a_correct,
+                            "b_correct": b_correct,
+                            "c_correct": c_correct,
+                            "a_total_pred": a_total_pred,
+                            "a_total_gold": a_total_gold,
                         })
                         
-
-                    df_scores = pd.DataFrame(per_review_scores)
-                    df_scores_filename = f'{file_basename}_scores.csv'
-                    df_scores.to_csv(df_scores_filename, index=False)
+                        df_scores = pd.DataFrame(per_review_scores)
+                        df_scores.to_csv(df_scores_filename, index=False)
 
         # write final results to csv
         results = []
+        
+        def preci_recall(pred_correct, total_pred_or_gold):
+            return pred_correct / total_pred_or_gold if total_pred_or_gold > 0 else 0
+                
+        def f1(prec, recall):
+            return 2*prec*recall/(prec+recall) if (prec+recall) > 0 else 0
+                
         for model in ['sabia-3', 'gpt-4o-mini']:
             for use_all_BC in [True, False]:
                 for nshots in [1, 3]:
@@ -434,29 +450,40 @@ class Step_4(Step):
                         print(f'Error reading {df_scores_filename}')
                         continue
                     
-                    print("df_scores", df_scores)
+                    # print("df_scores", df_scores)
+                    a_correct_total = df_scores["a_correct"].sum()
+                    b_correct_total = df_scores["b_correct"].sum()
+                    c_correct_total = df_scores["c_correct"].sum()
+                    a_total_gold_total = df_scores["a_total_gold"].sum()
+                    a_total_pred_total = df_scores["a_total_pred"].sum()
                     
-                    def f1(p, r):
-                        return 2*p*r/(p+r) if (p+r) > 0 else 0
-
+                    a_prec = preci_recall(a_correct_total, a_total_pred_total)
+                    b_prec = preci_recall(b_correct_total, a_total_pred_total)
+                    c_prec = preci_recall(c_correct_total, a_total_pred_total)
+                    
+                    a_rec = preci_recall(a_correct_total, a_total_gold_total)
+                    b_rec = preci_recall(b_correct_total, a_total_gold_total)
+                    c_rec = preci_recall(c_correct_total, a_total_gold_total)
+                    
+                    a_f1 = f1(a_prec, a_rec)
+                    b_f1 = f1(b_prec, b_rec)
+                    c_f1 = f1(c_prec, c_rec)
+                    
+                
                     metrics = {
                         "model": model,
                         "nshots": nshots,
                         "use_all_BC": use_all_BC,
-
-                        "precision_a": df_scores["prec_a"].mean(),
-                        "recall_a": df_scores["rec_a"].mean(),
-                        "f1_a": f1(df_scores["prec_a"].mean(), df_scores["rec_a"].mean()),
-
-                        "precision_b": df_scores["prec_b"].mean(),
-                        "recall_b": df_scores["rec_b"].mean(),
-                        "f1_b": f1(df_scores["prec_b"].mean(), df_scores["rec_b"].mean()),
-
-                        "precision_c": df_scores["prec_c"].mean(),
-                        "recall_c": df_scores["rec_c"].mean(),
-                        "f1_c": f1(df_scores["prec_c"].mean(), df_scores["rec_c"].mean()),
+                        "a_prec": a_prec,
+                        "b_prec": b_prec,
+                        "c_prec": c_prec,
+                        "a_rec": a_rec,
+                        "b_rec": b_rec,
+                        "c_rec": c_rec,
+                        "a_f1": a_f1,
+                        "b_f1": b_f1,
+                        "c_f1": c_f1,
                     }
-
                     results.append(metrics)
 
         df_results = pd.DataFrame(results)
@@ -483,8 +510,8 @@ class Step_4(Step):
             
     def run_ABSA(self, step_name, df_base, model, nshots, reviews_per_request = 10, num_reviews_to_process = None, use_all_BC = True):
 
-        # i_initial_eval_index = 92  # 0 in from begining, otherwise index of last processed element + 1
-        # i_final_eval_index = 94
+        # i_initial_eval_index = 12  # 0 in from begining, otherwise index of last processed element + 1
+        # i_final_eval_index = 24
         
         i_initial_eval_index = 0  # 0 in from begining, otherwise index of last processed element + 1
         i_final_eval_index = min(num_reviews_to_process, len(df_base)) # or number of last element to be processed + 1
@@ -525,42 +552,45 @@ class Step_4(Step):
                     print(f'Error count: {error_count}')
                     continue
                 try:
-                    # replaces fixes for zero shot
-                    response = response.strip()
-                    
-                    # fix for sabia-3 alucination with "[[[" in begining
-                    pattern = r'^[\s]*\[\s*\[\s*\['
-                    match = re.search(pattern, response)
-                    if match:
-                        response = re.sub(pattern, '[[',response)
-                    else:                        
-                        # fix for alucination where not exists '[[' at the beginning
-                        match = re.search(r'^(\s*[\r\n]*\[\s*[\r\n]*\[)', response)
-                        if not match:
-                            response = f'[{response}'
-                    
-                    # fix for sabia-3 alucination with "]]]" in the end
-                    pattern = r'\s*[\r\n]*\]\s*[\r\n]*\]\s*[\r\n]*\]$'
-                    match = re.search(pattern, response)
-                    if match:
-                        response = re.sub(pattern, ']]',response)
-                    else:
-                        # fix for alucination where not exists ']]' at the end
-                        match = re.search(r'\s*[\r\n]*\]\s*[\r\n]*\]$', response)
-                        if not match:
-                            response = f'{response}]'
-                    
-                    # fix for sabia-3 alucination with "]],[" each review
-                    pattern = r'\s*[\r\n]*\]\s*[\r\n]*\]\s*[\r\n]*,\s*[\r\n]*\[\s*[\r\n]*'
-                    response = re.sub(pattern, '],[',response)
-                    
-                    # fix for sabia-3 alucination with "],[[" each review
-                    pattern = r'\s*[\r\n]*\]\s*[\r\n]*,\s*[\r\n]*\[\s*[\r\n]*\[\s*[\r\n]*'
-                    response = re.sub(pattern, '],[',response)
-                    
+
+                    # Remove leading whitespace/newlines
+                    response = response.lstrip()
+                    response = response.rstrip()
+
+                    # Normalize start
+                    response = re.sub(r'^\s*(?:\[\s*)+', '[[',response)
+
+                    # Normalize end
+                    response = re.sub(r'(?:\s*\])+\s*$', ']]', response)
+
                     # fix for sabia-3 alucination with "][" each review
                     pattern = r'\s*[\r\n]*\]\s*[\r\n]*\[\s*[\r\n]*'
                     response = re.sub(pattern, '],[',response)
+
+                    # fix for sabia-3 alucination with "]][" each review
+                    pattern = r'\s*[\r\n]*\]\s*[\r\n]*\]\s*[\r\n]*\[\s*[\r\n]*'
+                    response = re.sub(pattern, '],[',response)
+
+                    # fix for sabia-3 alucination with "][[" each review
+                    pattern = r'\s*[\r\n]*\]\s*[\r\n]*\[\s*[\r\n]*\[\s*[\r\n]*'
+                    response = re.sub(pattern, '],[',response)
+
+                    # fix for sabia-3 alucination with "]][[" each review
+                    pattern = r'\s*[\r\n]*\]\s*[\r\n]*\]\s*[\r\n]*\[\s*[\r\n]*\[\s*[\r\n]*'
+                    response = re.sub(pattern, '],[',response)
+
+                    # fix for sabia-3 alucination with "]],[[" each review
+                    pattern = r'\s*[\r\n]*\]\s*[\r\n]*\]\s*[\r\n]*,\s*[\r\n]*\[\s*[\r\n]*\[\s*[\r\n]*'
+                    response = re.sub(pattern, '],[',response)
+
+                    # fix for sabia-3 alucination with "]],[" each review
+                    pattern = r'\s*[\r\n]*\]\s*[\r\n]*\]\s*[\r\n]*,\s*[\r\n]*\[\s*[\r\n]*'
+                    response = re.sub(pattern, '],[',response)
+
+                    # fix for sabia-3 alucination with "],[[" each review
+                    pattern = r'\s*[\r\n]*\]\s*[\r\n]*,\s*[\r\n]*\[\s*[\r\n]*\[\s*[\r\n]*'
+                    response = re.sub(pattern, '],[',response)
+
                     
                     # fix for gpt allucionations
                     response = response.replace('```json', '')
