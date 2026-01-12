@@ -329,19 +329,9 @@ class Step_4(Step):
         reviews_per_request = 6
         num_reviews_to_process = 108
 
-        # 1 - nshots = 0
-        # 2 - for model in ['sabia-3']: , for use_all_BC in [True]: , for nshots in [1]:
-        # 3 - for model in ['sabia-3']: , for use_all_BC in [True]: , for nshots in [3]:
-        # 4 - for model in ['sabia-3']: , for use_all_BC in [False]: , for nshots in [1]:
-        # 5 - for model in ['sabia-3']: , for use_all_BC in [False]: , for nshots in [3]:
-
-        for model in ['sabia-3']:
-            for use_all_BC in [True]:
-                for nshots in [3]:
-        # for model in ['sabia-3']:
-        # for model in ['gpt-4o-mini']:
-        #   for use_all_BC in [False]:
-        #       for nshots in [1, 3]:
+        for model in ['sabia-3','gpt-4o-mini']:
+          for use_all_BC in [True, False]:
+              for nshots in [1, 3]:
                     file_basename=f'{self.work_dir}/step_4_2____{nshots}shots_{model}_{"all_BC" if use_all_BC else f"{nshots}_BC"}'
                     error_count = 0
                     
