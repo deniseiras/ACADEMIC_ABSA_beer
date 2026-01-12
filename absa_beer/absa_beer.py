@@ -16,19 +16,16 @@ from step_3 import Step_3
 from step_4 import Step_4
 from step_5 import Step_5
 from step_6 import Step_6
-from step_7 import Step_7
 
 
 # Main function
 def main():
 
-    run_step_1 = False
-    if run_step_1:
-        step_1 = Step_1()
-        # testing 2 pages and 2 reviews
-        step_1.max_beer_page = 2
-        step_1.max_page_reviews = 2
-        step_1.run()
+    step_1 = Step_1()
+    # testing 2 pages and 2 reviews
+    # step_1.max_beer_page = 2
+    # step_1.max_page_reviews = 2
+    step_1.run()
 
     step_2 = Step_2()
     step_2.run()
@@ -48,8 +45,6 @@ def main():
     step_6 = Step_6()
     step_6.run()
     
-    step_7 = Step_7()
-    step_7.run()
 
 if __name__ == "__main__":
     main()
