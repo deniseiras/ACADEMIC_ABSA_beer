@@ -1,5 +1,5 @@
 """
-Step 6: Generating Final Bases
+Step 6: Generating Results
 
 :author: Denis Eiras
 
