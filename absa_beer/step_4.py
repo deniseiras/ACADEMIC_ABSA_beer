@@ -317,14 +317,10 @@ class Step_4(Step):
         and computes macro Precision / Recall / F1.
         """
 
-        # TESTING ************************
-        # base_prompts_df = pd.read_csv(f"{self.work_dir}/step_4_1__base_prompts_TEST.csv", sep=",", encoding="utf-8")
-        
         annotated_file = f"{self.work_dir}/base_prompts_validation_annotated.csv"
         df_gold = pd.read_csv(annotated_file, sep=",", encoding="utf-8")
         
         prompt_ai = Prompt_AI("gpt-4o-mini", None)
-
 
         reviews_per_request = 6
         num_reviews_to_process = 108
@@ -500,8 +496,8 @@ class Step_4(Step):
             
     def run_ABSA(self, step_name, df_base, model, nshots, reviews_per_request = 10, num_reviews_to_process = None, use_all_BC = True):
 
-        # i_initial_eval_index = 12  # 0 in from begining, otherwise index of last processed element + 1
-        # i_final_eval_index = 24
+        # i_initial_eval_index = 6  # 0 in from begining, otherwise index of last processed element + 1
+        # i_final_eval_index = 12
         
         i_initial_eval_index = 0  # 0 in from begining, otherwise index of last processed element + 1
         i_final_eval_index = min(num_reviews_to_process, len(df_base)) # or number of last element to be processed + 1
