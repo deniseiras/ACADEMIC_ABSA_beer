@@ -120,6 +120,7 @@ class Step_1(Step):
 
         return dic_beer_details
 
+
     # Function to get user reviews
     def get_beer_reviews(self, beer_url):
 
@@ -223,7 +224,6 @@ class Step_1(Step):
 
         return beer_reviews
 
-    # Main function
     def run(self):
         print(f'\n\nRunning Step 1\n================================')
 

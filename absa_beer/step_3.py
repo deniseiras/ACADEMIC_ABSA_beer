@@ -17,7 +17,6 @@ class Step_3(Step):
 
     def __init__(self) -> None:
         super().__init__()
-
    
     def run(self):
         """Create 'Prompt Main Base' and 'Main Base' (step_3_reviews_main.csv)
