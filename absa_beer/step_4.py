@@ -382,10 +382,10 @@ que degustei. Pergunto: é uma IPA ou é uma American Pale Ale lupulada em exces
 
         print(f'Step 4.1 - Selections of reviews for Prompts ABSA')
         styles_for_prompt = ['India Pale Ale (IPA)', 'German Weizen', 'Porter', 'Witbier']
-        pre_selected_reviews = self.df[ self.df['beer_style'].isin(styles_for_prompt) & 
-                                     ((self.df['review_general_rate'] >= 4) | (self.df['review_general_rate'] <= 2)) & 
+        pre_selected_reviews = self.inp_out_df[ self.inp_out_df['beer_style'].isin(styles_for_prompt) & 
+                                     ((self.inp_out_df['review_general_rate'] >= 4) | (self.inp_out_df['review_general_rate'] <= 2)) & 
                                      # TODO check 368
-                                     ((self.df['review_num_reviews'] >= 368) | (self.df['review_num_reviews'] == 1))]
+                                     ((self.inp_out_df['review_num_reviews'] >= 368) | (self.inp_out_df['review_num_reviews'] == 1))]
         pre_selected_reviews = pre_selected_reviews.sort_values(by=['beer_style', 'review_general_rate', 'review_num_reviews'])
         
         # df is the initial base for selection of reviews for prompts
@@ -426,8 +426,8 @@ que degustei. Pergunto: é uma IPA ou é uma American Pale Ale lupulada em exces
        
         # Base Prompts creation
         print(f'Step 4.1 - Base Prompts Validation: creating')
-        print(f'- Initial line count: {len(self.df)}')
-        df = self.df
+        print(f'- Initial line count: {len(self.inp_out_df)}')
+        df = self.inp_out_df
 
         # remove registers of df containing reviews_for_prompts_df registers, to not influence on validation
         df = df[~df.isin(reviews_for_prompts_df)]
@@ -791,18 +791,20 @@ que degustei. Pergunto: é uma IPA ou é uma American Pale Ale lupulada em exces
         print("\nStep 4.2 evaluation completed")
         print(df_results)          
                 
-    def run_step_4_3_evaluate_main_base(self, df_main_base):
+    def run_step_4_3_evaluate_main_base(self):
         "The best model will run on the whole dataset"
             
         best_model = 'sabia-3'
         best_nshots = 1
         num_reviews_to_process = 10e6
         reviews_per_request = 10
-        is_num_shots_for_each_CC = False
-        absa_main_df, _ = self.run_ABSA('step_4_3', df_main_base, best_model, best_nshots, 
-                      reviews_per_request=reviews_per_request, num_reviews_to_process=num_reviews_to_process, use_all_BC = is_num_shots_for_each_CC)
+        use_all_BC = False
         
-        absa_main_df.to_csv(f'{self.work_dir}/step_4_absa_main.csv', index=False)
+        print(f'- df_main_base - line count: {len(self.inp_out_df)}')
+        absa_main_df, _ = self.run_ABSA('step_4_3', self.inp_out_df, best_model, best_nshots, 
+                      reviews_per_request=reviews_per_request, num_reviews_to_process=num_reviews_to_process, use_all_BC = use_all_BC)
+        
+        return absa_main_df
          
     def run_ABSA(self, step_name, df_base, model, nshots, reviews_per_request = 10, num_reviews_to_process = None, use_all_BC = True):
 
@@ -935,7 +937,7 @@ que degustei. Pergunto: é uma IPA ou é uma American Pale Ale lupulada em exces
         
         print(f'\n\nRunning Step 4\n================================')
         file = f'{self.work_dir}/step_3_reviews_main.csv'
-        self.read_csv(file)
+        self.read_inp_out_csv(file)
         
         # Creates the Base Prompts Creation: for creating one and few shot prompts based on step_3_reviews_main.csv
         df_selecao_prompts = self.run_step_4_1_create_base_prompts()
@@ -947,9 +949,7 @@ que degustei. Pergunto: é uma IPA ou é uma American Pale Ale lupulada em exces
         
         # do ABSA in Base Prompts Validation for n shots and models, to select the best combination
         self.run_step_4_2_ABSA_model_shots_evaluation(df_base_prompts)
-        
-        df_main_base = self.df
-        print(f'- df_main_base - line count: {len(df_main_base)}')
        
         # # do ABSA for real with the best combination of models and shots
-        self.run_step_4_3_evaluate_main_base(df_main_base)
+        self.run_step_4_3_evaluate_main_base()
+        self.inp_out_df.to_csv(f'{self.work_dir}/step_4_absa_main.csv', index=False)

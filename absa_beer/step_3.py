@@ -32,14 +32,14 @@ class Step_3(Step):
         """
         print(f'\n\nRunning Step 3\n================================')
         file = f"{self.work_dir}/step_2.csv"
-        self.read_csv(file)
-        print(f"{len(self.df)} lines Total")
+        self.read_inp_out_csv(file)
+        print(f"{len(self.inp_out_df)} lines Total")
                         
         prompt_sys = """Você é um sistema de seleção de avaliações de cervejas de uma base de avaliações, que seleciona avaliações na língua \
 portuguesa que citam pelo menos uma característica de cerveja. Você não faz comentários não solicitados.
 """
         i_initial_eval_index = 0  # 0 in from begining, otherwise index of last processed element + 1
-        i_final_eval_index = len(self.df)
+        i_final_eval_index = len(self.inp_out_df)
         reviews_per_request = 5  # api is limiting to 10 reviews per request, even when the token limit is not reached
         review_eval_count = 1
         reviews_comments = ''
@@ -70,7 +70,7 @@ portuguesa que citam pelo menos uma característica de cerveja. Você não faz c
         df_response.to_csv(step3_file_name, index=False, header=True)
         
         for i_general in range(i_initial_eval_index, i_final_eval_index):
-            line = self.df.iloc[i_general]
+            line = self.inp_out_df.iloc[i_general]
             
             comm = line[['review_comment']].values[0]
             comm = self.clean_json_string(comm)
@@ -109,9 +109,9 @@ portuguesa que citam pelo menos uma característica de cerveja. Você não faz c
         df_response.to_csv(step3_file_name, index=False)
         df_reviews_not_selected = df_response[df_response['selected'] == 'NO']
         
-        step3_df = self.df.drop(df_reviews_not_selected['index'].astype(int).tolist())
+        self.inp_out_df = self.inp_out_df.drop(df_reviews_not_selected['index'].astype(int).tolist())
         
-        step3_df.reset_index(drop=True, inplace=True)
-        step3_df.to_csv(f'{self.work_dir}/step_3_reviews_main.csv', index=True)
+        self.inp_out_df.reset_index(drop=True, inplace=True)
+        self.inp_out_df.to_csv(f'{self.work_dir}/step_3_reviews_main.csv', index=True)
             
 

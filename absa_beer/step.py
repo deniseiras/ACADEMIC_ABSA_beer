@@ -6,8 +6,17 @@ import unicodedata
 
 class Step:
 
-    def read_csv(self, filename, dtype_options=None):
-        self.df = pd.read_csv(filename, sep=",", encoding="utf-8", dtype=dtype_options)
+    def __init__(self) -> None:
+        pd.set_option("display.max_rows", None)
+        pd.set_option("display.max_columns", None)
+
+        dotenv.load_dotenv("./.env")
+
+        self.work_dir = os.getenv("WORK_DIR")
+        self.inp_out_df = None
+        
+    def read_inp_out_csv(self, filename, dtype_options=None):
+        self.inp_out_df = pd.read_csv(filename, sep=",", encoding="utf-8", dtype=dtype_options)
 
     def read_data(self, filename):
         """Reads the raw data into a DataFrame
@@ -42,7 +51,7 @@ class Step:
             "review_comment": str,
         }
 
-        self.read_csv(filename, dtype_options=dtype_options)
+        self.read_inp_out_csv(filename, dtype_options=dtype_options)
 
     def generate_descriptive_statistics(self, file_to_save=None):
         """Generate descriptive statistics for non-empty columns
@@ -56,7 +65,7 @@ class Step:
         """
 
         print("generating descriptive statistics")
-        df = self.df[["beer_alcohol", "beer_srm", "beer_ibu", "review_num_reviews", "review_general_rate", 
+        df = self.inp_out_df[["beer_alcohol", "beer_srm", "beer_ibu", "review_num_reviews", "review_general_rate", 
                       "review_aroma", "review_visual", "review_flavor", "review_sensation", "review_general_set", "review_comment_size",]]
         statistics = df.describe(include="all")
         if file_to_save is None:
@@ -64,15 +73,6 @@ class Step:
         else:
             file_path = os.path.join(self.work_dir, file_to_save)
             statistics.to_csv(file_path)
-
-    def __init__(self) -> None:
-        pd.set_option("display.max_rows", None)
-        pd.set_option("display.max_columns", None)
-
-        dotenv.load_dotenv("./.env")
-
-        self.work_dir = os.getenv("WORK_DIR")
-        self.df = None
 
     def run(self):
         pass

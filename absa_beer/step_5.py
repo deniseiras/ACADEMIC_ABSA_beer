@@ -563,13 +563,12 @@ class Step_5(Step):
         
         print(f'\n\nRunning Step 5\n================================')
                 
-        self.read_csv(f'{self.work_dir}/step_4_absa_main.csv')
-        df_base_absa = self.df
+        self.read_inp_out_csv(f'{self.work_dir}/step_4_absa_main.csv')
+        df_base_absa = self.inp_out_df
         categories = self.get_category_list()
         df_base_absa = df_base_absa[df_base_absa['category'].isin(categories)]
 
-        self.read_csv(f'{self.work_dir}/step_3_reviews_main.csv')
-        df_base_principal = self.df       
+        df_base_principal = pd.read_csv(f'{self.work_dir}/step_3_reviews_main.csv', sep=",", encoding="utf-8", dtype=None)
 
         # Create a base joining df_base_principal, df_base_absa and df_base_sa
         df_base_absa_interested_columns = df_base_principal[['index', 'review_comment', 'review_datetime', 'beer_style', 'review_general_rate', 

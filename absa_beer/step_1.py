@@ -14,8 +14,6 @@ from selenium.webdriver.support.ui import Select
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.by import By
-import dotenv
-import os
 from datetime import datetime
 import pandas as pd
 from step import Step
@@ -233,8 +231,8 @@ class Step_1(Step):
         order_type = "rdate"  # most recent
         # order_type = 'reviews'  # most reviews
 
-        self.df = None
         initial_beer_page = 1
+        buff_df = None
 
         # now = datetime.now()
         # now_str = now.strftime("%Y%m%d-%H%M%S")
@@ -281,17 +279,17 @@ class Step_1(Step):
                             ],
                             axis=1,
                         )
-                        if self.df is None:
-                            self.df = df_beer_rev
+                        if buff_df is None:
+                            buff_df = df_beer_rev
                         else:
-                            self.df = pd.concat(
-                                [self.df, df_beer_rev], ignore_index=True
+                            buff_df = pd.concat(
+                                [buff_df, df_beer_rev], ignore_index=True
                             )
 
                     if item == beer_items[-1]:
                         initial_beer_page += 1
 
-                self.df.to_csv(f, header=f.tell() == 0, index=False)
-                self.df = None
-
+                buff_df.to_csv(f, header=f.tell() == 0, index=False)
+        
+        self.inp_out_df = buff_df
         print("Finished running!")
