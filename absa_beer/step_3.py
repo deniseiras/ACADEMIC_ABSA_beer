@@ -20,7 +20,7 @@ class Step_3(Step):
 
    
     def run(self):
-        """Create 'Prompt Main Base' and 'Main Base' (step_3.csv)
+        """Create 'Prompt Main Base' and 'Main Base' (step_3_reviews_main.csv)
 
         To create the 'Main Base', used for the AS and ABSA executed in ASBA (Step 4) and AS (Step 5), it was selected
         the best reviews using a prompt to achieve this.
@@ -78,7 +78,6 @@ portuguesa que citam pelo menos uma característica de cerveja. Você não faz c
             reviews_comments += f'\n["{i_general}", "{comm}"]'
             
             if review_eval_count == reviews_per_request or i_general == i_final_eval_index-1:
-                # TODO - using prompt_sys in second argument makes the output json retunr without "[ ]"
                 prompt_ai = Prompt_AI("gpt-4o-mini", f'{prompt_sys} {prompt_user} {{ {reviews_comments} }}')
                 response, finish_reason = prompt_ai.get_completion()
                 if finish_reason != 'stop':
@@ -113,9 +112,7 @@ portuguesa que citam pelo menos uma característica de cerveja. Você não faz c
         
         step3_df = self.df.drop(df_reviews_not_selected['index'].astype(int).tolist())
         
-        # TODO Drop not processed indexes
-        
         step3_df.reset_index(drop=True, inplace=True)
-        step3_df.to_csv(f'{self.work_dir}/step_3.csv', index=True)
+        step3_df.to_csv(f'{self.work_dir}/step_3_reviews_main.csv', index=True)
             
 

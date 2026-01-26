@@ -25,7 +25,7 @@ class Step_4(Step):
     def run(self):
         """
         This function runs Step 4 of the Aspect-Based Sentiment Analysis of Beer Characteristics.
-        It reads the step_3.csv (Main Base) containing the reviews for the previous step, creates the prompts and then
+        It reads the step_3_reviews_main.csv (Main Base) containing the reviews for the previous step, creates the prompts and then
         test models and nshots by testing different prompts. Finally, runs the best prompt in the entire Base (Main Base)
 
         Args:
@@ -35,15 +35,15 @@ class Step_4(Step):
         """
         
         print(f'\n\nRunning Step 4\n================================')
-        file = f'{self.work_dir}/step_3.csv'
+        file = f'{self.work_dir}/step_3_reviews_main.csv'
         self.read_csv(file)
         
-        # Creates the Base Prompts Creation: for creating one and few shot prompts based on step_3.csv
-        df_selecao_prompts = self.run_step_4_1_create_base_prompts_creation()
+        # Creates the Base Prompts Creation: for creating one and few shot prompts based on step_3_reviews_main.csv
+        df_selecao_prompts = self.run_step_4_1_create_base_prompts()
         print(df_selecao_prompts.describe())
         
         # Creates the Base Prompts Validation: used to test models and nshots
-        df_base_prompts = self.run_step_4_1_create_base_prompts_validation(df_selecao_prompts)
+        df_base_prompts = self.run_step_4_1_create_base_reviews_sample(df_selecao_prompts)
         print(df_base_prompts.describe())
         
         # do ABSA in Base Prompts Validation for n shots and models, to select the best combination
@@ -56,7 +56,7 @@ class Step_4(Step):
         # self.run_step_4_3_evaluate_main_base(df_main_base)
 
 
-    def run_step_4_1_create_base_prompts_creation(self):
+    def run_step_4_1_create_base_prompts(self):
         """
         This function selects reviews for creating Prompts ABSA based on certain criteria.
         The 16 reviews are selected manually from this base regarding the constraints
@@ -102,7 +102,7 @@ class Step_4(Step):
         return manual_selected_df
     
         
-    def run_step_4_1_create_base_prompts_validation(self, reviews_for_prompts_df: pd.DataFrame):
+    def run_step_4_1_create_base_reviews_sample(self, reviews_for_prompts_df: pd.DataFrame):
         """
         This function selects reviews for Prompt ABSA based on certain criteria.
         Creates the "Base Prompts Validation", for testing prompts zero, one and few shots.
@@ -170,7 +170,7 @@ class Step_4(Step):
         df = df.sort_values(by=['review_datetime', 'review_general_rate', 'review_num_reviews'])
         print(f'\nFinal line count (Base Prompts Evaluation): {len(df)}')
         
-        df.to_csv(f'{self.work_dir}/step_4_1__base_prompts.csv', index=False)
+        df.to_csv(f'{self.work_dir}/step_4_1__reviews_sample.csv', index=False)
         return df
 
 
@@ -218,13 +218,13 @@ class Step_4(Step):
                 )
                 continue
 
-            gold_payload = {
+            gold_item = {
                 "id": gold["id"],
                 "aspect": gold["aspect"],
                 "category": gold["category"],
             }
 
-            pred_payload = [
+            pred_items = [
                 {
                     "id": p["id"],
                     "aspect": p["aspect"],
@@ -261,10 +261,10 @@ class Step_4(Step):
         - category_ok = true SOMENTE se as categorias forem semanticamente equivalentes.
 
     ASPECTO ANOTADO:
-    {gold_payload}
+    {gold_item}
 
     ASPECTOS PREVISTOS:
-    {pred_payload}
+    {pred_items}
     """
             prompt_ai.prompt = prompt
             response, finish_reason = prompt_ai.get_completion()
@@ -313,11 +313,11 @@ class Step_4(Step):
 
     def run_step_4_2_ABSA_model_shots_evaluation(self, base_prompts_df):
         """
-        Runs ABSA outputs against base_prompts_validation_annotated.csv
+        Runs ABSA outputs against ABSA_Gold.csv
         and computes macro Precision / Recall / F1.
         """
 
-        annotated_file = f"{self.work_dir}/base_prompts_validation_annotated.csv"
+        annotated_file = f"{self.work_dir}/ABSA_Gold.csv"
         df_gold = pd.read_csv(annotated_file, sep=",", encoding="utf-8")
         
         prompt_ai = Prompt_AI("gpt-4o-mini", None)
@@ -326,12 +326,17 @@ class Step_4(Step):
         num_reviews_to_process = 108
 
         for model in ['sabia-3','gpt-4o-mini']:
-          for use_all_BC in [True, False]:
-              for nshots in [1, 3]:
+            for use_all_BC in [True, False]:
+                for nshots in [0, 1, 3]:
+                    
+                    # skips BC if nshots == 0
+                    if nshots == 0 and use_all_BC == True:  
+                        continue
+                    
                     file_basename=f'{self.work_dir}/step_4_2____{nshots}shots_{model}_{"all_BC" if use_all_BC else f"{nshots}_BC"}'
                     error_count = 0
                     
-                    df_pred = self.run_ABSA(
+                    df_pred, n_shot_file_name = self.run_ABSA(
                         'step_4_2',
                         base_prompts_df,
                         model,
@@ -342,8 +347,7 @@ class Step_4(Step):
                     )
                     
                     # TESTING 
-                    # file_basename_read_done_exp=f'{self.work_dir}/step_4_2__{nshots}shots_{model}_{"all_BC" if use_all_BC else f"{nshots}_BC"}_6rev_per_req_from_0.csv'
-                    # df_pred = pd.read_csv(file_basename_read_done_exp, sep=",", encoding="utf-8")
+                    # df_pred = pd.read_csv(n_shot_file_name, sep=",", encoding="utf-8")
                     # print(f'\n\n****************************\ndf_pred - line count: {len(df_pred)} \n\n')
                     # continue
                     
@@ -424,7 +428,12 @@ class Step_4(Step):
                 
         for model in ['sabia-3', 'gpt-4o-mini']:
             for use_all_BC in [True, False]:
-                for nshots in [1, 3]:
+                for nshots in [0, 1, 3]:
+                    
+                    # skips BC if nshots == 0
+                    if nshots == 0 and use_all_BC == True:  
+                        continue
+                    
                     file_basename=f'{self.work_dir}/step_4_2____{nshots}shots_{model}_{"all_BC" if use_all_BC else f"{nshots}_BC"}'
                     df_scores_filename = f'{file_basename}_scores.csv'
                     # df_scores.to_csv(df_scores_filename, index=False)
@@ -488,10 +497,10 @@ class Step_4(Step):
         num_reviews_to_process = 10e6
         reviews_per_request = 10
         is_num_shots_for_each_CC = False
-        self.run_ABSA('step_4_3', df_main_base, best_model, best_nshots, 
+        absa_main_df, _ = self.run_ABSA('step_4_3', df_main_base, best_model, best_nshots, 
                       reviews_per_request=reviews_per_request, num_reviews_to_process=num_reviews_to_process, use_all_BC = is_num_shots_for_each_CC)
         
-        print("Please, copy the best file of combination of this step to step_4.csv")
+        absa_main_df.to_csv(f'{self.work_dir}/step_4_absa_main.csv', index=False)
        
             
     def run_ABSA(self, step_name, df_base, model, nshots, reviews_per_request = 10, num_reviews_to_process = None, use_all_BC = True):
@@ -609,7 +618,7 @@ class Step_4(Step):
         df_response = df_response.sort_values(by=['index', 'aspect'])
         df_response.to_csv(n_shot_file_name, index=False)
         
-        return df_response
+        return df_response, n_shot_file_name
 
 
     def step_4_1_get_prompt_zero_shot(self):
