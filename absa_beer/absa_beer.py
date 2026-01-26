@@ -22,9 +22,6 @@ from step_6 import Step_6
 def main():
 
     step_1 = Step_1()
-    # testing 2 pages and 2 reviews
-    # step_1.max_beer_page = 2
-    # step_1.max_page_reviews = 2
     step_1.run()
 
     step_2 = Step_2()
@@ -41,10 +38,6 @@ def main():
 
     step_5 = Step_5()
     step_5.run()
-    
-    step_6 = Step_6()
-    step_6.run()
-    
 
 if __name__ == "__main__":
     main()
