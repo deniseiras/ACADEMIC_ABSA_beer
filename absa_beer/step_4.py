@@ -13,14 +13,49 @@ from step import Step
 from Prompt_AI import Prompt_AI
 import re
 import json
-
+from datetime import datetime
+import time as time_module
+import os
 
 class Step_4(Step):
 
     def __init__(self) -> None:
         super().__init__()
 
+    def wait_for_interval(self, start: str, end: str):
+        """
+        This function waits for a specific interval of time.
+        Used to run the prompts in a specific time window, cheaper hours
+        
+        Args:
+            start (str): The start time in the format "HH:MM".
+            end (str): The end time in the format "HH:MM".
+        """
+        start_time = datetime.strptime(start, "%H:%M").time()
+        end_time = datetime.strptime(end, "%H:%M").time()
+
+        while True:
+            now = datetime.now().time()
+            if start_time <= end_time:
+                inside = start_time <= now <= end_time
+            else:
+                # interval crossing midnight (e.g. 22:00–06:00)
+                inside = now >= start_time or now <= end_time
+            if inside:
+                print("waiting for running hours")
+                time_module.sleep(30)
+            else:
+                return
+        
     def step_4_1_get_prompt_zero_shot(self):
+        """
+        This function creates the Prompt ABSA zero-shot.
+      
+        Parameters:
+            self (object): The object instance that contains the data.
+        Returns:
+            str: The prompt ABSA zero-shot.
+        """
             
         print(f'Step 4.1 - "Prompt ABSA zero-shot" creation')
         prompt_sys = """ 
@@ -47,6 +82,8 @@ Não faça comentários, apenas gere a saída dos campos extraídos no formato a
         Parameters:
             self (object): The object instance that contains the data.
             prompt_zero_shot (str): The prompt ABSA zero-shot.
+            num_shots (int): The number of shots to generate.
+            use_all_BC (bool): Whether to use all beer characteristcs of each review.
         """
         
         print(f'Step 4.1 - "Prompt ABSA few-shots" creation')
@@ -65,14 +102,14 @@ estragada... sabor de giz e terra. Carbonatação baixa. Corpo médio. Uma terr�
 ou experimente por sua própria conta e risco. \
 ['0', 'cor do líquido amarelado', 'visual', 'neutro'], \
 ['0', 'cor do líquido turvo', 'visual', 'neutro'], \
-['0', 'formação de espuma baixa', 'visual', 'negativo'], \
-['0', 'espuma efervescente', 'visual', 'negativo'], \
+['0', 'formação de espuma baixa', 'visual', 'neutro'], \
+['0', 'espuma efervescente', 'visual', 'neutro'], \
 ['0', 'espuma pouco persistente', 'visual', 'negativo'], \
 ['0', 'notas cítricas de laranja', 'aroma', 'positivo'], \
 ['0', 'notas cítricas de semente de coentro', 'aroma', 'positivo'], \
+['0', 'efervescente', 'sensação na boca', 'neutro'], \
 ['0', 'giz', 'sabor', 'muito negativo'], \
 ['0', 'terra', 'sabor', 'muito negativo'], \
-['0', 'efervescente', 'sensação na boca', 'neutro'], \
 ['0', 'carbonatação baixa', 'sensação na boca', 'neutro'], \
 ['0', 'corpo médio', 'sensação na boca', 'neutro'] \
 "
@@ -87,18 +124,19 @@ e pimenta, muito bom. Sabor: Maltado com cereais, frutado de limão e especiaria
 amargo, levemente ácido e picante. O sabor cítrico do limão permanece por todo o gole, se prolongando no retrogosto, apresentando excelente \
 drinkability e refrescância absurda! Excelente breja!! \
 ['0', 'cor do líquido amarelo-palha', 'visual', 'neutro'], \
-['0', 'cor do líquido turvo', 'visual', 'neutro'], \
+['0', 'medianamente turva', 'visual', 'neutro'], \
 ['0', 'formação de espuma média', 'visual', 'neutro'], \
 ['0', 'cor da espuma branca', 'visual', 'neutro'], \
-['0', 'notas cítricas de limão', 'aroma', 'muito positivo'], \
+['0', 'espuma persistente', 'visual', 'positivo'], \
+['0', 'cítrico de limão', 'aroma', 'muito positivo'], \
 ['0', 'coentro', 'aroma', 'muito positivo'], \
-['0', 'especiarias', 'aroma', 'muito positivo'], \
-['0', 'maltado com cereais', 'sabor', 'positivo'], \
-['0', 'frutado de limão', 'sabor', 'positivo'], \
-['0', 'especiarias', 'sabor', 'positivo'], \
-['0', 'ácido leve', 'sabor', 'positivo'], \
-['0', 'picante', 'sabor', 'positivo'], \
-['0', 'cítrico do limão', 'sabor', 'muito positivo'], \
+['0', 'pimenta', 'aroma', 'muito positivo'], \
+['0', 'maltado com cereais', 'sabor', 'neutro'], \
+['0', 'frutado de limão', 'sabor', 'neutro'], \
+['0', 'especiarias', 'sabor', 'neutro'], \
+['0', 'final levemente amargo', 'amargor', 'neutro'], \
+['0', 'final ácido leve', 'sabor', 'neutro'], \
+['0', 'final picante', 'sabor', 'neutro'], \
 ['0', 'drinkability alta', 'sensação na boca', 'muito positivo'], \
 ['0', 'refrescância alta', 'sensação na boca', 'muito positivo'] \
 "
@@ -116,9 +154,9 @@ notas de banana e nada de cravo com um final doce demais. Estranho. Corpo: aguad
 curto. Conjunto: desequilibrado pelo excesso do doce e pelo descompassado do corpo e carbonatação. Drinkability baixa e refrescância \
 comprometida. \
 ['0', 'cor do líquido dourado claro', 'visual', 'neutro'], \
-['0', 'líquido turvo', 'visual', 'neutro'], \
+['0', 'turva', 'visual', 'neutro'], \
 ['0', 'formação de espuma médio', 'visual', 'neutro'], \
-['0', 'espuma pouco persistente', 'visual', 'negativo'], \
+['0', 'espuma de baixa persistência', 'visual', 'neutro'], \
 ['0', 'notas de banana', 'sabor', 'neutro'], \
 ['0', 'dulçor alto', 'sabor', 'negativo'], \
 ['0', 'corpo aguado', 'sensação na boca', 'negativo'], \
@@ -138,21 +176,21 @@ picantes. Tem corpo médio, carbonatação moderada e sensação refrescante. Ex
 ['0', 'cor da espuma branca', 'visual', 'neutro'], \
 ['0', 'formação de espuma média', 'visual', 'neutro'], \
 ['0', 'espuma persistente', 'visual', 'positivo'], \
-['0', 'banana', 'aroma', 'positivo'], \
-['0', 'cravo', 'aroma', 'positivo'], \
-['0', 'floral', 'aroma', 'positivo'], \
-['0', 'mel', 'aroma', 'positivo'], \
-['0', 'pão doce', 'aroma', 'positivo'], \
-['0', 'banana', 'sabor', 'positivo'], \
-['0', 'cravo', 'sabor', 'positivo'], \
-['0', 'floral', 'sabor', 'positivo'], \
-['0', 'mel', 'sabor', 'positivo'], \
-['0', 'pão doce', 'sabor', 'positivo'], \
-['0', 'cereais', 'sabor', 'positivo'], \
-['0', 'herbal sutil', 'sabor', 'positivo'], \
-['0', 'notas picantes', 'sabor', 'positivo'], \
-['0', 'corpo médio', 'sensação na boca', 'positivo'], \
-['0', 'carbonatação moderada', 'sensação na boca', 'positivo'], \
+['0', 'banana', 'aroma', 'neutro'], \
+['0', 'cravo', 'aroma', 'neutro'], \
+['0', 'mel', 'aroma', 'neutro'], \
+['0', 'floral', 'aroma', 'neutro'], \
+['0', 'pão doce', 'aroma', 'neutro'], \
+['0', 'banana', 'sabor', 'neutro'], \
+['0', 'cravo', 'sabor', 'neutro'], \
+['0', 'mel', 'sabor', 'neutro'], \
+['0', 'floral', 'sabor', 'neutro'], \
+['0', 'pão doce', 'sabor', 'neutro'], \
+['0', 'cereais', 'sabor', 'neutro'], \
+['0', 'herbal sutil', 'sabor', 'neutro'], \
+['0', 'notas picantes', 'sabor', 'neutro'], \
+['0', 'corpo médio', 'sensação na boca', 'neutro'], \
+['0', 'carbonatação moderada', 'sensação na boca', 'neutro'], \
 ['0', 'refrescância alta', 'sensação na boca', 'positivo'] \
 "
 """
@@ -165,13 +203,13 @@ picantes. Tem corpo médio, carbonatação moderada e sensação refrescante. Ex
 "Cor amarela clara, com certa turbidez, de cara fugindo um pouco da expectativa do estilo. Aroma maltado com \
 cítrico muito suave e paladar maltado, pouco lupulado e quase sem presença cítrica. Longe de uma IPA. Média carbonatação e boa drinkability,\
 corpo leve. Desagradou.... \
-['0', 'cor do líquido amarelo', 'visual', 'negativo'], \
+['0', 'cor do líquido amarelo claro', 'visual', 'negativo'], \
 ['0', 'líquido turvo', 'visual', 'negativo'], \
 ['0', 'maltado', 'aroma', 'neutro'], \
-['0', 'pouco cítrico', 'aroma', 'negativo'], \
+['0', 'cítrico muito suave', 'aroma', 'neutro'], \
 ['0', 'maltado', 'sabor', 'neutro'], \
-['0', 'pouco lupulado', 'sabor', 'negativo'], \
-['0', 'pouco cítrico', 'sabor', 'negativo'], \
+['0', 'pouco lupulado', 'sabor', 'neutro'], \
+['0', 'cítrico muito suave, 'sabor', 'neutro'], \
 ['0', 'média carbonatação', 'sensação na boca', 'neutro'], \
 ['0', 'drinkability boa', 'sensação na boca', 'positivo'], \
 ['0', 'corpo baixo', 'sensação na boca', 'neutro'] \
@@ -199,18 +237,19 @@ Specialty Beer. Já está entre as minhas favoritas. Mais um preço abusivo da B
 ['0', 'caramelado', 'aroma', 'muito positivo'], \
 ['0', 'melaço', 'aroma', 'muito positivo'], \
 ['0', 'chocolate cremoso', 'aroma', 'muito positivo'], \
-['0', 'notas herbais', 'aroma', 'muito positivo'], \
-['0', 'notas de laranja', 'aroma', 'muito positivo'], \
-['0', 'dulçor', 'sabor', 'positivo'], \
-['0', 'doce de chocolate branco/cremoso', 'sabor', 'positivo'], \
+['0', 'herbal', 'aroma', 'muito positivo'], \
+['0', 'laranja', 'aroma', 'muito positivo'], \
+['0', 'dulçor', 'sabor', 'neutro'], \
+['0', 'doce de chocolate branco/cremoso', 'sabor', 'neutro'], \
 ['0', 'cacau', 'sabor', 'positivo'], \
-['0', 'caramelo/toffe', 'sabor', 'positivo'], \
-['0', 'malte torrado leve', 'sabor', 'positivo'], \
-['0', 'amargor leve', 'amargor', 'positivo'], \
-['0', 'corpo denso', 'sensação na boca', 'positivo'], \
+['0', 'caramelo/toffe', 'sabor', 'neutro'], \
+['0', 'amargor floral', 'amargor', 'neutro'], \
+['0', 'malte torrado leve', 'sabor', 'neutro'], \
+['0', 'corpo denso', 'sensação na boca', 'neutro'], \
 ['0', 'corpo licoroso', 'sensação na boca', 'positivo'], \
-['0', 'amargor floral', 'amargor', 'positivo'], \
-['0', 'final seco', 'sensação na boca', 'positivo'] \
+['0', 'final seco', 'sensação na boca', 'neutro'] \
+['0', 'amargor leve', 'amargor', 'neutro'], \
+['0', 'retrogosto amargo', 'amargor', 'neutro'], \
 "
 """
         #  ONE SHOT EXAMPLE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -230,8 +269,9 @@ que degustei. Pergunto: é uma IPA ou é uma American Pale Ale lupulada em exces
 ['0', 'formação de espuma ótima', 'visual', 'muito positivo'], \
 ['0', 'espuma persistente', 'visual', 'muito positivo'], \
 ['0', 'herbáceo suave demais', 'aroma', 'negativo'], \
-['0', 'amargor excessivo', 'amargor', 'negativo'], \
+['0', 'amargor intenso', 'amargor', 'negativo'], \
 ['0', 'adstringente', 'amargor', 'negativo'], \
+['0', 'baixíssima drinkability', 'sensação na boca', 'muito negativo'], \
 ['0', 'maltado alto', 'sabor', 'neutro'], \
 ['0', 'retrogosto de mel', 'sabor', 'neutro'], \
 ['0', 'retrogosto de pão', 'sabor', 'neutro'], \
@@ -264,7 +304,6 @@ fora do estilo. Bebi apenas um copo e deixei o resto para mulherada. \
 ['0', 'espuma pouco persistente', 'visual', 'negativo'], \
 ['0', 'caramelo', 'aroma', 'neutro'], \
 ['0', 'ácúcar mascavo', 'aroma', 'neutro'], \
-['0', 'torrado leve', 'sabor', 'positivo'], \
 ['0', 'caramelo', 'sabor', 'neutro'], \
 ['0', 'torrado leve', 'sabor', 'neutro'], \
 ['0', 'dulçor alto', 'sabor', 'negativo'] \
@@ -284,10 +323,6 @@ resultando em notas de coco queimado, canela, baunilha, ameixa seca e café - ri
 inserido (sério, cadê esse álcool todo anunciado?) O final segue ligeiramente adocicado, com bastante cachaça e breve torrado.  "Drinkability" \
 relativamente alta em vista de toda sua "periculosidade", por assim dizer.  Blend muito bem construído, com cerveja e cachaça na mais perfeita \
 harmonia. Parabéns aos envolvidos! ???? \
-['0', 'cor do líquido castanho avermelhado', 'visual', 'neutro'], \
-['0', 'cor do líquido semi translúcido', 'visual', 'neutro'], \
-['0', 'cor da espuma bege clara ', 'visual', 'neutro'], \
-['0', 'formação de espuma baixa', 'visual', 'neutro'], \
 ['0', 'intenso de cachaça', 'aroma', 'muito positivo'], \
 ['0', 'coco', 'aroma', 'muito positivo'], \
 ['0', 'canela', 'aroma', 'muito positivo'], \
@@ -296,17 +331,22 @@ harmonia. Parabéns aos envolvidos! ???? \
 ['0', 'toffee', 'aroma', 'muito positivo'], \
 ['0', 'melaço', 'aroma', 'muito positivo'], \
 ['0', 'ameixa seca', 'aroma', 'muito positivo'], \
-['0', 'notas de coco queimado', 'sabor', 'positivo'], \
-['0', 'notas de canela', 'sabor', 'positivo'], \
-['0', 'notas de baunilha', 'sabor', 'positivo'], \
-['0', 'notas de ameixa seca', 'sabor', 'positivo'], \
+['0', 'cor do líquido castanho avermelhado', 'visual', 'neutro'], \
+['0', 'cor do líquido semi translúcido', 'visual', 'neutro'], \
+['0', 'cor da espuma bege clara ', 'visual', 'neutro'], \
+['0', 'corpo médio', 'sensação na boca', 'neutro'], \
+['0', 'carbonatação baixa', 'sensação na boca', 'neutro'], \
+['0', 'coco queimado', 'sabor', 'positivo'], \
+['0', 'canela', 'sabor', 'positivo'], \
+['0', 'baunilha', 'sabor', 'positivo'], \
+['0', 'ameixa seca', 'sabor', 'positivo'], \
 ['0', 'café', 'sabor', 'positivo'], \
 ['0', 'dulçor maltado leve', 'sabor', 'positivo'], \
-['0', 'alcool imperceptível', 'alcool', 'muito positivo'], \
-['0', 'final dulçor leve', 'sabor', 'positivo'], \
-['0', 'final cachaça', 'sabor', 'positivo'], \
-['0', 'final leve torrado', 'sabor', 'positivo'], \
-['0', 'drinkability alta', 'sensação na boca', 'positivo'] \
+['0', 'alcool muito bem inserido', 'alcool', 'muito positivo'], \
+['0', 'final com dulçor leve', 'sabor', 'neutro'], \
+['0', 'final com bastante cachaça', 'sabor', 'neutro'], \
+['0', 'final leve torrado', 'sabor', 'neutro'], \
+['0', 'drinkability relativamente alta', 'sensação na boca', 'positivo'] \
 "
 """
 
@@ -370,21 +410,21 @@ que degustei. Pergunto: é uma IPA ou é uma American Pale Ale lupulada em exces
 
     def run_step_4_1_create_base_prompts(self):
         """
-        This function selects reviews for creating Prompts ABSA based on certain criteria.
-        The 16 reviews are selected manually from this base regarding the constraints
+        This function selects reviews for creating the "Prompts Shots".
+        To construct the one-shot and few-shot prompts, 10 reviews were pre-selected from the "Reviews Main" base.
+        The selection ensured diversity across four beer styles from different BJCP style categories, balanced 
+        between positive and negative evaluations and drawn from both experienced and novice reviewers
+        
         Parameters:
-                self (object): The object instance that contains the data.
-
+            self (object): The object instance that contains the data.
         Returns:
-                pandas.DataFrame: A DataFrame containing the selected reviews. The DataFrame is sorted by beer style, 
-                review general rate, and review number of reviews.
+            pandas.DataFrame: A DataFrame containing the selected reviews.
         """
 
         print(f'Step 4.1 - Selections of reviews for Prompts ABSA')
         styles_for_prompt = ['India Pale Ale (IPA)', 'German Weizen', 'Porter', 'Witbier']
         pre_selected_reviews = self.inp_out_df[ self.inp_out_df['beer_style'].isin(styles_for_prompt) & 
                                      ((self.inp_out_df['review_general_rate'] >= 4) | (self.inp_out_df['review_general_rate'] <= 2)) & 
-                                     # TODO check 368
                                      ((self.inp_out_df['review_num_reviews'] >= 368) | (self.inp_out_df['review_num_reviews'] == 1))]
         pre_selected_reviews = pre_selected_reviews.sort_values(by=['beer_style', 'review_general_rate', 'review_num_reviews'])
         
@@ -416,7 +456,8 @@ que degustei. Pergunto: é uma IPA ou é uma American Pale Ale lupulada em exces
     def run_step_4_1_create_base_reviews_sample(self, reviews_for_prompts_df: pd.DataFrame):
         """
         This function selects reviews for Prompt ABSA based on certain criteria.
-        Creates the "Base Prompts Validation", for testing prompts zero, one and few shots.
+        Creates the "Base Reviews Sample", for testing prompts zero, one and few shots.
+        
         Parameters:
             self (object): The object instance that contains the data.
         Returns:
@@ -484,9 +525,15 @@ que degustei. Pergunto: é uma IPA ou é uma American Pale Ale lupulada em exces
 
     def llm_batch_equivalence_judge(self, pred_df, gold_df, error_count, prompt_ai):
         """
-        Itera sobre aspectos anotados (gold), chamando o LLM uma vez por gold.
-        Cada chamada recebe 1 gold e todos os preds ainda não utilizados.
-        Produz pareamentos um-para-um e remove preds pareados.
+        Iterates over aspects annotated (gold), calling the LLM once per gold.
+        Each call receives 1 gold and all preds not yet used.
+        Produces pairs one-to-one and removes pairs already matched.
+        
+        Parameters:
+            pred_df (pandas.DataFrame): The DataFrame containing the predictions.
+            gold_df (pandas.DataFrame): The DataFrame containing the gold annotations.
+            error_count (int): The current error count.
+            prompt_ai (Prompt_AI): The Prompt_AI object.
         """
 
         pred_list = [
@@ -615,10 +662,13 @@ que degustei. Pergunto: é uma IPA ou é uma American Pale Ale lupulada em exces
 
         return matches, error_count
 
-    def run_step_4_2_ABSA_model_shots_evaluation(self, base_prompts_df):
+    def run_step_4_2_ABSA_model_shots_evaluation(self, df_reviews_sample):
         """
-        Runs ABSA outputs against ABSA_Gold.csv
-        and computes macro Precision / Recall / F1.
+        Runs ABSA of vary models and shots on Reviews Sample.
+        Compares against ABSA_Gold.csv and computes macro Precision / Recall / F1.
+        
+        Parameters:
+            df_reviews_sample (pandas.DataFrame): The DataFrame containing the base prompts.
         """
 
         annotated_file = f"{self.work_dir}/ABSA_Gold.csv"
@@ -626,179 +676,192 @@ que degustei. Pergunto: é uma IPA ou é uma American Pale Ale lupulada em exces
         
         prompt_ai = Prompt_AI("gpt-4o-mini", None)
 
-        reviews_per_request = 6
+        # reviews_per_request = 6
         num_reviews_to_process = 108
 
-        for model in ['sabia-3','gpt-4o-mini']:
-            for use_all_BC in [True, False]:
-                for nshots in [0, 1, 3]:
-                    
-                    # skips BC if nshots == 0
-                    if nshots == 0 and use_all_BC == True:  
-                        continue
-                    
-                    file_basename=f'{self.work_dir}/step_4_2____{nshots}shots_{model}_{"all_BC" if use_all_BC else f"{nshots}_BC"}'
-                    error_count = 0
-                    
-                    df_pred, n_shot_file_name = self.run_ABSA(
-                        'step_4_2',
-                        base_prompts_df,
-                        model,
-                        nshots,
-                        reviews_per_request,
-                        num_reviews_to_process=num_reviews_to_process,
-                        use_all_BC=use_all_BC
-                    )
-                    
-                    # TESTING 
-                    # df_pred = pd.read_csv(n_shot_file_name, sep=",", encoding="utf-8")
-                    # print(f'\n\n****************************\ndf_pred - line count: {len(df_pred)} \n\n')
-                    # continue
-                    
-                    df_scores_filename = f'{file_basename}_scores.csv'
-                    try:
-                        print(f'Reading {df_scores_filename}')
-                        df_scores = pd.read_csv(df_scores_filename, sep=",", encoding="utf-8")
-                    except:
-                        print(f'{df_scores_filename} not exists')
-                        df_scores = None
-                    
-                    per_review_scores = []
-
-                    # test_count = 0
-                    for idx in df_gold['index'].unique():
-                        # if test_count > 1:
-                        #     break
-                        # test_count += 1
-
-                        gold_i = df_gold[df_gold['index'] == idx]
-                        pred_i = df_pred[df_pred['index'] == idx]
-
-                        # ignore non existing reviews in the validation set or in the predicted set
-                        if len(gold_i) == 0 or len(pred_i) == 0:
-                            print(f'No reviews found for review {idx} !!!')
+        for reviews_per_request in [1, 3, 6]:
+            for model in ['sabia-3','gpt-4o-mini']:
+                for use_all_BC in [False, True]:
+                    for nshots in [0, 1, 3]:
+    
+                        # skips BC if nshots == 0
+                        if nshots == 0 and use_all_BC == True:  
                             continue
                         
-                        if df_scores is not None and idx in df_scores['index'].unique():
-                            print(f'Found review {idx} in df_scores, skipping')
-                            continue
-
-                        matches, error_count = self.llm_batch_equivalence_judge(pred_i, gold_i, error_count, prompt_ai)
-                        if len(matches) == 0:
-                            print(f'No matches found for review {idx}')
-                            continue
+                        file_basename=f'{self.work_dir}/step_4_2__{nshots}shots_{model}_{"all_BC" if use_all_BC else f"{nshots}_BC"}_{reviews_per_request}rev_per_req'
+                        error_count = 0
+                        
+                        # TESTING 
+                        # if exists n_shot_file_name, read it
+                        n_shot_file_name = f'{file_basename}.csv'
+                        import os
+                        if os.path.exists(n_shot_file_name):
+                            df_pred = pd.read_csv(n_shot_file_name, sep=",", encoding="utf-8")
+                            df_pred['index'] = pd.to_numeric(df_pred['index'], errors='coerce')
+                            print(f'\n\n****************************\ndf_pred - line count: {len(df_pred)} \n\n')
+                        else:
                             
-                        print("matches", matches)
-
-                        a_correct = sum(1 for m in matches if m["aspect_ok"])
-                        b_correct = sum(1 for m in matches if m["aspect_ok"] and m["category_ok"])
-                        c_correct = sum(
-                            1 for m in matches
-                            if m["aspect_ok"] and m["category_ok"] and m["sentiment_ok"]
-                        )
-
-                        a_total_pred = len(pred_i)
-                        a_total_gold = len(gold_i)
-                        a_correct = min(a_correct, a_total_pred)
-                        b_correct = min(b_correct, a_total_pred)
-                        c_correct = min(c_correct, a_total_pred)
+                            df_pred, n_shot_file_name = self.run_ABSA(
+                                'step_4_2',
+                                df_reviews_sample,
+                                model,
+                                nshots,
+                                reviews_per_request,
+                                num_reviews_to_process=num_reviews_to_process,
+                                use_all_BC=use_all_BC
+                            )
                         
-                        print("a_total_pred", a_total_pred)
-                        print("a_total_gold", a_total_gold)
-                        print("a_correct", a_correct)
-                        print("b_correct", b_correct)
-                        print("c_correct", c_correct)
-
-                        per_review_scores.append({
-                            "index": idx,
-                            "a_correct": a_correct,
-                            "b_correct": b_correct,
-                            "c_correct": c_correct,
-                            "a_total_pred": a_total_pred,
-                            "a_total_gold": a_total_gold,
-                        })
                         
-                        df_scores = pd.DataFrame(per_review_scores)
-                        df_scores.to_csv(df_scores_filename, index=False)
+                        df_scores_filename = f'{file_basename}_scores.csv'
+                        try:
+                            print(f'Reading {df_scores_filename}')
+                            df_scores = pd.read_csv(df_scores_filename, sep=",", encoding="utf-8")
+                        except:
+                            print(f'{df_scores_filename} not exists')
+                            df_scores = None
+                        
+                        per_review_scores = []
 
-        # write final results to csv
-        results = []
-        
-        def preci_recall(pred_correct, total_pred_or_gold):
-            return pred_correct / total_pred_or_gold if total_pred_or_gold > 0 else 0
-                
-        def f1(prec, recall):
-            return 2*prec*recall/(prec+recall) if (prec+recall) > 0 else 0
-                
-        for model in ['sabia-3', 'gpt-4o-mini']:
-            for use_all_BC in [True, False]:
-                for nshots in [0, 1, 3]:
-                    
-                    # skips BC if nshots == 0
-                    if nshots == 0 and use_all_BC == True:  
-                        continue
-                    
-                    file_basename=f'{self.work_dir}/step_4_2____{nshots}shots_{model}_{"all_BC" if use_all_BC else f"{nshots}_BC"}'
-                    df_scores_filename = f'{file_basename}_scores.csv'
-                    # df_scores.to_csv(df_scores_filename, index=False)
-                    
-                    # open the df_scores_filename to df_scores
-                    try:
-                        df_scores = pd.read_csv(df_scores_filename, sep=",", encoding="utf-8")
-                    except:
-                        print(f'Error reading {df_scores_filename}')
-                        continue
-                    
-                    # print("df_scores", df_scores)
-                    a_correct_total = df_scores["a_correct"].sum()
-                    b_correct_total = df_scores["b_correct"].sum()
-                    c_correct_total = df_scores["c_correct"].sum()
-                    a_total_gold_total = df_scores["a_total_gold"].sum()
-                    a_total_pred_total = df_scores["a_total_pred"].sum()
-                    
-                    a_prec = preci_recall(a_correct_total, a_total_pred_total)
-                    b_prec = preci_recall(b_correct_total, a_total_pred_total)
-                    c_prec = preci_recall(c_correct_total, a_total_pred_total)
-                    
-                    a_rec = preci_recall(a_correct_total, a_total_gold_total)
-                    b_rec = preci_recall(b_correct_total, a_total_gold_total)
-                    c_rec = preci_recall(c_correct_total, a_total_gold_total)
-                    
-                    a_f1 = f1(a_prec, a_rec)
-                    b_f1 = f1(b_prec, b_rec)
-                    c_f1 = f1(c_prec, c_rec)
-                
-                    metrics = {
-                        "model": model,
-                        "nshots": nshots,
-                        "use_all_BC": use_all_BC,
-                        "a_prec": a_prec,
-                        "b_prec": b_prec,
-                        "c_prec": c_prec,
-                        "a_rec": a_rec,
-                        "b_rec": b_rec,
-                        "c_rec": c_rec,
-                        "a_f1": a_f1,
-                        "b_f1": b_f1,
-                        "c_f1": c_f1,
-                    }
-                    results.append(metrics)
+                        # test_count = 0
+                        for idx in df_gold['index'].unique():
+                            # if test_count > 1:
+                            #     break
+                            # test_count += 1
 
-        df_results = pd.DataFrame(results)
-        df_results_filename = f'{self.work_dir}/step_4_2____evaluation_metrics.csv'
-        df_results.to_csv(df_results_filename, index=False)
+                            gold_i = df_gold[df_gold['index'] == idx]
+                            pred_i = df_pred[df_pred['index'] == idx]
 
-        print("\nStep 4.2 evaluation completed")
-        print(df_results)          
+                            # ignore non existing reviews in the validation set or in the predicted set
+                            if len(gold_i) == 0 or len(pred_i) == 0:
+                                print(f'No reviews found for review {idx} !!!')
+                                continue
+                            
+                            if df_scores is not None and idx in df_scores['index'].unique():
+                                print(f'Found review {idx} in df_scores, skipping')
+                                continue
+
+                            matches, error_count = self.llm_batch_equivalence_judge(pred_i, gold_i, error_count, prompt_ai)
+                            if len(matches) == 0:
+                                print(f'No matches found for review {idx}')
+                                continue
+                                
+                            print("matches", matches)
+
+                            a_correct = sum(1 for m in matches if m["aspect_ok"])
+                            b_correct = sum(1 for m in matches if m["aspect_ok"] and m["category_ok"])
+                            c_correct = sum(
+                                1 for m in matches
+                                if m["aspect_ok"] and m["category_ok"] and m["sentiment_ok"]
+                            )
+
+                            a_total_pred = len(pred_i)
+                            a_total_gold = len(gold_i)
+                            a_correct = min(a_correct, a_total_pred)
+                            b_correct = min(b_correct, a_total_pred)
+                            c_correct = min(c_correct, a_total_pred)
+                            
+                            print("a_total_pred", a_total_pred)
+                            print("a_total_gold", a_total_gold)
+                            print("a_correct", a_correct)
+                            print("b_correct", b_correct)
+                            print("c_correct", c_correct)
+
+                            per_review_scores.append({
+                                "index": idx,
+                                "a_correct": a_correct,
+                                "b_correct": b_correct,
+                                "c_correct": c_correct,
+                                "a_total_pred": a_total_pred,
+                                "a_total_gold": a_total_gold,
+                            })
+                            
+                            df_scores = pd.DataFrame(per_review_scores)
+                            df_scores.to_csv(df_scores_filename, index=False)
+
+            # write final results to csv
+            results = []
+            
+            def preci_recall(pred_correct, total_pred_or_gold):
+                return pred_correct / total_pred_or_gold if total_pred_or_gold > 0 else 0
+                    
+            def f1(prec, recall):
+                return 2*prec*recall/(prec+recall) if (prec+recall) > 0 else 0
+                    
+            for model in ['sabia-3', 'gpt-4o-mini']:
+                for use_all_BC in [True, False]:
+                    for nshots in [0, 1, 3]:
+            
+                        # skips BC if nshots == 0
+                        if nshots == 0 and use_all_BC == True:  
+                            continue
+                        
+                        file_basename=f'{self.work_dir}/step_4_2__{nshots}shots_{model}_{"all_BC" if use_all_BC else f"{nshots}_BC"}_{reviews_per_request}rev_per_req'
+                        df_scores_filename = f'{file_basename}_scores.csv'
+                        
+                        try:
+                            df_scores = pd.read_csv(df_scores_filename, sep=",", encoding="utf-8")
+                        except:
+                            print(f'File not found: {df_scores_filename} , skipping evaluation metrics')
+                            continue
+                        
+                        # print("df_scores", df_scores)
+                        a_correct_total = df_scores["a_correct"].sum()
+                        b_correct_total = df_scores["b_correct"].sum()
+                        c_correct_total = df_scores["c_correct"].sum()
+                        a_total_gold_total = df_scores["a_total_gold"].sum()
+                        a_total_pred_total = df_scores["a_total_pred"].sum()
+                        
+                        a_prec = preci_recall(a_correct_total, a_total_pred_total)
+                        b_prec = preci_recall(b_correct_total, a_total_pred_total)
+                        c_prec = preci_recall(c_correct_total, a_total_pred_total)
+                        
+                        a_rec = preci_recall(a_correct_total, a_total_gold_total)
+                        b_rec = preci_recall(b_correct_total, a_total_gold_total)
+                        c_rec = preci_recall(c_correct_total, a_total_gold_total)
+                        
+                        a_f1 = f1(a_prec, a_rec)
+                        b_f1 = f1(b_prec, b_rec)
+                        c_f1 = f1(c_prec, c_rec)
+                    
+                        metrics = {
+                            "model": model,
+                            "nshots": nshots,
+                            "use_all_BC": use_all_BC,
+                            "a_prec": a_prec,
+                            "b_prec": b_prec,
+                            "c_prec": c_prec,
+                            "a_rec": a_rec,
+                            "b_rec": b_rec,
+                            "c_rec": c_rec,
+                            "a_f1": a_f1,
+                            "b_f1": b_f1,
+                            "c_f1": c_f1,
+                        }
+                        results.append(metrics)
+
+            df_results = pd.DataFrame(results)
+            df_results_filename = f'{self.work_dir}/step_4_2____evaluation_metrics_{reviews_per_request}rev_per_req.csv'
+            df_results.to_csv(df_results_filename, index=False)
+
+            print("\nStep 4.2 evaluation completed")
+            print(df_results)          
                 
     def run_step_4_3_evaluate_main_base(self):
-        "The best model will run on the whole dataset"
+        """
+        The best model and number of shots runs on the Reviews Main base.
+        
+        Parameters:
+            self (object): The object instance that contains the data.
+        Returns:
+            absa_main_df (pandas.DataFrame): The DataFrame containing the ABSA Main base.
+        
+        """
             
         best_model = 'sabia-3'
-        best_nshots = 1
+        best_nshots = 3
         num_reviews_to_process = 10e6
-        reviews_per_request = 10
-        use_all_BC = False
+        reviews_per_request = 1
+        use_all_BC = True
         
         print(f'- df_main_base - line count: {len(self.inp_out_df)}')
         absa_main_df, _ = self.run_ABSA('step_4_3', self.inp_out_df, best_model, best_nshots, 
@@ -807,9 +870,20 @@ que degustei. Pergunto: é uma IPA ou é uma American Pale Ale lupulada em exces
         return absa_main_df
          
     def run_ABSA(self, step_name, df_base, model, nshots, reviews_per_request = 10, num_reviews_to_process = None, use_all_BC = True):
-
-        # i_initial_eval_index = 6  # 0 in from begining, otherwise index of last processed element + 1
-        # i_final_eval_index = 12
+        """
+        This function runs ABSA for a given model and number of shots on a given base.
+        
+        Parameters:
+            step_name (str): The name of the step.
+            df_base (pandas.DataFrame): The DataFrame containing the base.
+            model (str): The name of the model.
+            nshots (int): The number of shots.
+            reviews_per_request (int): The number of reviews per request.
+            num_reviews_to_process (int): The number of reviews to process.
+            use_all_BC (bool): Whether to use all beer characteristcs of each review.
+        Returns:
+            pandas.DataFrame: The DataFrame containing the ABSA results.
+        """
         
         i_initial_eval_index = 0  # 0 in from begining, otherwise index of last processed element + 1
         i_final_eval_index = min(num_reviews_to_process, len(df_base)) # or number of last element to be processed + 1
@@ -826,10 +900,20 @@ que degustei. Pergunto: é uma IPA ou é uma American Pale Ale lupulada em exces
         response_columns = ['index', 'aspect', 'category', 'sentiment']
         df_response = pd.DataFrame(columns=response_columns)
         n_shot_file_name = f'{self.work_dir}/{step_name}__{nshots}shots_{model}_{"all_BC" if use_all_BC else f"{nshots}_BC"}_{reviews_per_request}rev_per_req_from_{i_initial_eval_index}.csv'
-        
-        df_response.to_csv(n_shot_file_name, index=False, header=True)
+        # if n_shot_file_name exists, read it
+        if os.path.exists(n_shot_file_name):
+            print(f'Reading from existing {n_shot_file_name}')
+            df_response = pd.read_csv(n_shot_file_name, sep=",", encoding="utf-8")
+        else:
+            df_response.to_csv(n_shot_file_name, index=False, header=True)
         error_count = 0
         for i_general in range(i_initial_eval_index, i_final_eval_index):
+            # if index already processed, skip
+            if i_general in df_response['index'].unique():
+                print(f'Skipping index {i_general} because already processed')
+                continue
+            
+            self.wait_for_interval("10:00", "02:00")
             line = df_base.iloc[i_general]
             
             comm = line[['review_comment']].values[0]
@@ -837,7 +921,6 @@ que degustei. Pergunto: é uma IPA ou é uma American Pale Ale lupulada em exces
             reviews_comments += f'\n{{"{i_general}", "{comm}"}}'
             
             if review_eval_count == reviews_per_request or i_general == i_final_eval_index-1:
-                # TODO - using prompt_sys in second argument makes the output json return without "[ ]"
                 prompt_ai = Prompt_AI(model, f'{prompt_n_shot} {reviews_comments} ')
                 
                 review_eval_count = 0
@@ -861,35 +944,29 @@ que degustei. Pergunto: é uma IPA ou é uma American Pale Ale lupulada em exces
                     # Normalize end
                     response = re.sub(r'(?:\s*\])+\s*$', ']]', response)
 
+                    # fixes for  alucinations when processing multiple reviews
+                    #
                     # fix for sabia-3 alucination with "][" each review
                     pattern = r'\s*[\r\n]*\]\s*[\r\n]*\[\s*[\r\n]*'
                     response = re.sub(pattern, '],[',response)
-
                     # fix for sabia-3 alucination with "]][" each review
                     pattern = r'\s*[\r\n]*\]\s*[\r\n]*\]\s*[\r\n]*\[\s*[\r\n]*'
                     response = re.sub(pattern, '],[',response)
-
                     # fix for sabia-3 alucination with "][[" each review
                     pattern = r'\s*[\r\n]*\]\s*[\r\n]*\[\s*[\r\n]*\[\s*[\r\n]*'
                     response = re.sub(pattern, '],[',response)
-
                     # fix for sabia-3 alucination with "]][[" each review
                     pattern = r'\s*[\r\n]*\]\s*[\r\n]*\]\s*[\r\n]*\[\s*[\r\n]*\[\s*[\r\n]*'
                     response = re.sub(pattern, '],[',response)
-
                     # fix for sabia-3 alucination with "]],[[" each review
                     pattern = r'\s*[\r\n]*\]\s*[\r\n]*\]\s*[\r\n]*,\s*[\r\n]*\[\s*[\r\n]*\[\s*[\r\n]*'
                     response = re.sub(pattern, '],[',response)
-
                     # fix for sabia-3 alucination with "]],[" each review
                     pattern = r'\s*[\r\n]*\]\s*[\r\n]*\]\s*[\r\n]*,\s*[\r\n]*\[\s*[\r\n]*'
                     response = re.sub(pattern, '],[',response)
-
                     # fix for sabia-3 alucination with "],[[" each review
                     pattern = r'\s*[\r\n]*\]\s*[\r\n]*,\s*[\r\n]*\[\s*[\r\n]*\[\s*[\r\n]*'
                     response = re.sub(pattern, '],[',response)
-
-                    
                     # fix for gpt allucionations
                     response = response.replace('```json', '')
                     response = response.replace('```', '')
@@ -917,7 +994,9 @@ que degustei. Pergunto: é uma IPA ou é uma American Pale Ale lupulada em exces
         
         print(f'TOTAL Error count: {error_count}')
         # finally, sort to check responses and save all the results
-        df_response['index'] = df_response['index'].astype(int)
+        # avoids error when index is not numeric - allucination
+        df_response['index'] = pd.to_numeric(df_response['index'], errors='coerce')
+        # df_response['index'] = df_response['index'].astype(int)
         df_response = df_response.sort_values(by=['index', 'aspect'])
         df_response.to_csv(n_shot_file_name, index=False)
         
@@ -944,12 +1023,12 @@ que degustei. Pergunto: é uma IPA ou é uma American Pale Ale lupulada em exces
         print(df_selecao_prompts.describe())
         
         # Creates the Base Prompts Validation: used to test models and nshots
-        df_base_prompts = self.run_step_4_1_create_base_reviews_sample(df_selecao_prompts)
-        print(df_base_prompts.describe())
+        df_reviews_sample = self.run_step_4_1_create_base_reviews_sample(df_selecao_prompts)
+        print(df_reviews_sample.describe())
         
-        # do ABSA in Base Prompts Validation for n shots and models, to select the best combination
-        self.run_step_4_2_ABSA_model_shots_evaluation(df_base_prompts)
+        # do ABSA in Base Reviews Sample for n shots and models, to select the best combination
+        self.run_step_4_2_ABSA_model_shots_evaluation(df_reviews_sample)
        
-        # # do ABSA for real with the best combination of models and shots
+        # do ABSA for real with the best combination of models and shots
         self.run_step_4_3_evaluate_main_base()
         self.inp_out_df.to_csv(f'{self.work_dir}/step_4_absa_main.csv', index=False)
