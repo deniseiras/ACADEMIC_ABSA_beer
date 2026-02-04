@@ -674,109 +674,124 @@ que degustei. Pergunto: é uma IPA ou é uma American Pale Ale lupulada em exces
         annotated_file = f"{self.work_dir}/ABSA_Gold.csv"
         df_gold = pd.read_csv(annotated_file, sep=",", encoding="utf-8")
         
+        # GPT was selected for this simpler task due to best results on the test set
         prompt_ai = Prompt_AI("gpt-4o-mini", None)
 
-        # reviews_per_request = 6
-        num_reviews_to_process = 108
+        num_reviews_to_process = len(df_gold) + 1
 
-        for reviews_per_request in [1, 3, 6]:
-            for model in ['sabia-3','gpt-4o-mini']:
-                for use_all_BC in [False, True]:
-                    for nshots in [0, 1, 3]:
+        # for reviews_per_request in [1, 3, 6, ,9 ,12]:
+        from itertools import product
+
+        # models = ['sabia-3', 'gpt-4o-mini']
+        # use_all_BC_opts = [True, False]
+        # nshots_opts = [0, 1, 3]
+        # reviews_per_request_opts = [1, 3, 6, 9, 12]
+        wait_for_interval = False
+        
+        models = ['sabia-3']
+        use_all_BC_opts = [True]
+        nshots_opts = [3]
+        reviews_per_request_opts = [3]
+ 
+        for model, use_all_BC, nshots, reviews_per_request in product(models, use_all_BC_opts, nshots_opts, reviews_per_request_opts):
+            print(f"Using {model} with {nshots} shots and {use_all_BC} BC, for {reviews_per_request} reviews per request")
     
-                        # skips BC if nshots == 0
-                        if nshots == 0 and use_all_BC == True:  
-                            continue
+            if nshots == 0 and use_all_BC == True:  
+                continue
+            
+            file_basename=f'{self.work_dir}/step_4_2__{nshots}shots_{model}_{"all_BC" if use_all_BC else f"{nshots}_BC"}_{reviews_per_request}rev_per_req'
+            error_count = 0
+            
+            n_shot_file_name = f'{file_basename}_from_0.csv'
+
+            # uncomment to not process again - run_ABSA ignores processed items
+            # if os.path.exists(n_shot_file_name):
+            #     df_pred = pd.read_csv(n_shot_file_name, sep=",", encoding="utf-8")
+            #     df_pred['index'] = pd.to_numeric(df_pred['index'], errors='coerce')
+            #     print(f'\n\n****************************\ndf_pred - line count: {len(df_pred)} \n\n')
+            # else:
+            
+            df_pred, n_shot_file_name = self.run_ABSA(
+                'step_4_2',
+                df_reviews_sample,
+                model,
+                nshots,
+                reviews_per_request,
+                num_reviews_to_process=num_reviews_to_process,
+                use_all_BC=use_all_BC,
+                wait_for_interval = wait_for_interval
+            )
+            
+            
+            df_scores_filename = f'{file_basename}_scores.csv'
+            try:
+                print(f'Reading {df_scores_filename}')
+                df_scores = pd.read_csv(df_scores_filename, sep=",", encoding="utf-8")
+                # per_review_scores is a list of dicts
+                per_review_scores = df_scores.to_dict('records')
+            except:
+                print(f'{df_scores_filename} not exists')
+                df_scores = None
+                per_review_scores = []
+
+            for idx in df_gold['index'].unique():
+                
+                gold_i = df_gold[df_gold['index'] == idx]
+                pred_i = df_pred[df_pred['index'] == idx]
+
+                # ignore non existing reviews in the validation set or in the predicted set
+                if len(gold_i) == 0:
+                    print(f'No gold reviews found for review {idx} !!! Skipping')
+                    continue
+                
+                if len(pred_i) == 0:
+                    print(f'No reviews found for review {idx} !!!')
+                    a_correct = 0
+                    b_correct = 0
+                    c_correct = 0
+                    a_total_pred = 0
+                else:
+                    if df_scores is not None and idx in df_scores['index'].unique():
+                        print(f'Found review {idx} in df_scores, skipping')
+                        continue
+
+                    matches, error_count = self.llm_batch_equivalence_judge(pred_i, gold_i, error_count, prompt_ai)
+                    if len(matches) == 0:
+                        print(f'No matches found for review {idx}')
+                        continue
                         
-                        file_basename=f'{self.work_dir}/step_4_2__{nshots}shots_{model}_{"all_BC" if use_all_BC else f"{nshots}_BC"}_{reviews_per_request}rev_per_req'
-                        error_count = 0
-                        
-                        # TESTING 
-                        # if exists n_shot_file_name, read it
-                        n_shot_file_name = f'{file_basename}.csv'
-                        import os
-                        if os.path.exists(n_shot_file_name):
-                            df_pred = pd.read_csv(n_shot_file_name, sep=",", encoding="utf-8")
-                            df_pred['index'] = pd.to_numeric(df_pred['index'], errors='coerce')
-                            print(f'\n\n****************************\ndf_pred - line count: {len(df_pred)} \n\n')
-                        else:
-                            
-                            df_pred, n_shot_file_name = self.run_ABSA(
-                                'step_4_2',
-                                df_reviews_sample,
-                                model,
-                                nshots,
-                                reviews_per_request,
-                                num_reviews_to_process=num_reviews_to_process,
-                                use_all_BC=use_all_BC
-                            )
-                        
-                        
-                        df_scores_filename = f'{file_basename}_scores.csv'
-                        try:
-                            print(f'Reading {df_scores_filename}')
-                            df_scores = pd.read_csv(df_scores_filename, sep=",", encoding="utf-8")
-                        except:
-                            print(f'{df_scores_filename} not exists')
-                            df_scores = None
-                        
-                        per_review_scores = []
+                    print("matches", matches)
 
-                        # test_count = 0
-                        for idx in df_gold['index'].unique():
-                            # if test_count > 1:
-                            #     break
-                            # test_count += 1
+                    a_correct = sum(1 for m in matches if m["aspect_ok"])
+                    b_correct = sum(1 for m in matches if m["aspect_ok"] and m["category_ok"])
+                    c_correct = sum(
+                        1 for m in matches
+                        if m["aspect_ok"] and m["category_ok"] and m["sentiment_ok"]
+                    )
 
-                            gold_i = df_gold[df_gold['index'] == idx]
-                            pred_i = df_pred[df_pred['index'] == idx]
+                    a_total_pred = len(pred_i)
+                    a_correct = min(a_correct, a_total_pred)
+                    b_correct = min(b_correct, a_total_pred)
+                    c_correct = min(c_correct, a_total_pred)
+                
+                a_total_gold = len(gold_i)    
+                print("a_total_pred", a_total_pred)
+                print("a_total_gold", a_total_gold)
+                print("a_correct", a_correct)
+                print("b_correct", b_correct)
+                print("c_correct", c_correct)
 
-                            # ignore non existing reviews in the validation set or in the predicted set
-                            if len(gold_i) == 0 or len(pred_i) == 0:
-                                print(f'No reviews found for review {idx} !!!')
-                                continue
-                            
-                            if df_scores is not None and idx in df_scores['index'].unique():
-                                print(f'Found review {idx} in df_scores, skipping')
-                                continue
-
-                            matches, error_count = self.llm_batch_equivalence_judge(pred_i, gold_i, error_count, prompt_ai)
-                            if len(matches) == 0:
-                                print(f'No matches found for review {idx}')
-                                continue
-                                
-                            print("matches", matches)
-
-                            a_correct = sum(1 for m in matches if m["aspect_ok"])
-                            b_correct = sum(1 for m in matches if m["aspect_ok"] and m["category_ok"])
-                            c_correct = sum(
-                                1 for m in matches
-                                if m["aspect_ok"] and m["category_ok"] and m["sentiment_ok"]
-                            )
-
-                            a_total_pred = len(pred_i)
-                            a_total_gold = len(gold_i)
-                            a_correct = min(a_correct, a_total_pred)
-                            b_correct = min(b_correct, a_total_pred)
-                            c_correct = min(c_correct, a_total_pred)
-                            
-                            print("a_total_pred", a_total_pred)
-                            print("a_total_gold", a_total_gold)
-                            print("a_correct", a_correct)
-                            print("b_correct", b_correct)
-                            print("c_correct", c_correct)
-
-                            per_review_scores.append({
-                                "index": idx,
-                                "a_correct": a_correct,
-                                "b_correct": b_correct,
-                                "c_correct": c_correct,
-                                "a_total_pred": a_total_pred,
-                                "a_total_gold": a_total_gold,
-                            })
-                            
-                            df_scores = pd.DataFrame(per_review_scores)
-                            df_scores.to_csv(df_scores_filename, index=False)
+                per_review_scores.append({
+                    "index": idx,
+                    "a_correct": a_correct,
+                    "b_correct": b_correct,
+                    "c_correct": c_correct,
+                    "a_total_pred": a_total_pred,
+                    "a_total_gold": a_total_gold,
+                })
+                
+                df_scores = pd.DataFrame(per_review_scores)
+                df_scores.to_csv(df_scores_filename, index=False)
 
             # write final results to csv
             results = []
@@ -787,57 +802,55 @@ que degustei. Pergunto: é uma IPA ou é uma American Pale Ale lupulada em exces
             def f1(prec, recall):
                 return 2*prec*recall/(prec+recall) if (prec+recall) > 0 else 0
                     
-            for model in ['sabia-3', 'gpt-4o-mini']:
-                for use_all_BC in [True, False]:
-                    for nshots in [0, 1, 3]:
+            for model, use_all_BC, nshots, reviews_per_request in product(models, use_all_BC_opts, nshots_opts, reviews_per_request_opts):
             
-                        # skips BC if nshots == 0
-                        if nshots == 0 and use_all_BC == True:  
-                            continue
-                        
-                        file_basename=f'{self.work_dir}/step_4_2__{nshots}shots_{model}_{"all_BC" if use_all_BC else f"{nshots}_BC"}_{reviews_per_request}rev_per_req'
-                        df_scores_filename = f'{file_basename}_scores.csv'
-                        
-                        try:
-                            df_scores = pd.read_csv(df_scores_filename, sep=",", encoding="utf-8")
-                        except:
-                            print(f'File not found: {df_scores_filename} , skipping evaluation metrics')
-                            continue
-                        
-                        # print("df_scores", df_scores)
-                        a_correct_total = df_scores["a_correct"].sum()
-                        b_correct_total = df_scores["b_correct"].sum()
-                        c_correct_total = df_scores["c_correct"].sum()
-                        a_total_gold_total = df_scores["a_total_gold"].sum()
-                        a_total_pred_total = df_scores["a_total_pred"].sum()
-                        
-                        a_prec = preci_recall(a_correct_total, a_total_pred_total)
-                        b_prec = preci_recall(b_correct_total, a_total_pred_total)
-                        c_prec = preci_recall(c_correct_total, a_total_pred_total)
-                        
-                        a_rec = preci_recall(a_correct_total, a_total_gold_total)
-                        b_rec = preci_recall(b_correct_total, a_total_gold_total)
-                        c_rec = preci_recall(c_correct_total, a_total_gold_total)
-                        
-                        a_f1 = f1(a_prec, a_rec)
-                        b_f1 = f1(b_prec, b_rec)
-                        c_f1 = f1(c_prec, c_rec)
-                    
-                        metrics = {
-                            "model": model,
-                            "nshots": nshots,
-                            "use_all_BC": use_all_BC,
-                            "a_prec": a_prec,
-                            "b_prec": b_prec,
-                            "c_prec": c_prec,
-                            "a_rec": a_rec,
-                            "b_rec": b_rec,
-                            "c_rec": c_rec,
-                            "a_f1": a_f1,
-                            "b_f1": b_f1,
-                            "c_f1": c_f1,
-                        }
-                        results.append(metrics)
+                # skips BC if nshots == 0
+                if nshots == 0 and use_all_BC == True:  
+                    continue
+                
+                file_basename=f'{self.work_dir}/step_4_2__{nshots}shots_{model}_{"all_BC" if use_all_BC else f"{nshots}_BC"}_{reviews_per_request}rev_per_req'
+                df_scores_filename = f'{file_basename}_scores.csv'
+                
+                try:
+                    df_scores = pd.read_csv(df_scores_filename, sep=",", encoding="utf-8")
+                except:
+                    print(f'File not found: {df_scores_filename} , skipping evaluation metrics')
+                    continue
+                
+                # print("df_scores", df_scores)
+                a_correct_total = df_scores["a_correct"].sum()
+                b_correct_total = df_scores["b_correct"].sum()
+                c_correct_total = df_scores["c_correct"].sum()
+                a_total_gold_total = df_scores["a_total_gold"].sum()
+                a_total_pred_total = df_scores["a_total_pred"].sum()
+                
+                a_prec = preci_recall(a_correct_total, a_total_pred_total)
+                b_prec = preci_recall(b_correct_total, a_total_pred_total)
+                c_prec = preci_recall(c_correct_total, a_total_pred_total)
+                
+                a_rec = preci_recall(a_correct_total, a_total_gold_total)
+                b_rec = preci_recall(b_correct_total, a_total_gold_total)
+                c_rec = preci_recall(c_correct_total, a_total_gold_total)
+                
+                a_f1 = f1(a_prec, a_rec)
+                b_f1 = f1(b_prec, b_rec)
+                c_f1 = f1(c_prec, c_rec)
+            
+                metrics = {
+                    "model": model,
+                    "nshots": nshots,
+                    "use_all_BC": use_all_BC,
+                    "a_prec": a_prec,
+                    "b_prec": b_prec,
+                    "c_prec": c_prec,
+                    "a_rec": a_rec,
+                    "b_rec": b_rec,
+                    "c_rec": c_rec,
+                    "a_f1": a_f1,
+                    "b_f1": b_f1,
+                    "c_f1": c_f1,
+                }
+                results.append(metrics)
 
             df_results = pd.DataFrame(results)
             df_results_filename = f'{self.work_dir}/step_4_2____evaluation_metrics_{reviews_per_request}rev_per_req.csv'
@@ -859,20 +872,21 @@ que degustei. Pergunto: é uma IPA ou é uma American Pale Ale lupulada em exces
             
         best_model = 'sabia-3'
         best_nshots = 3
+        reviews_per_request = 6
         num_reviews_to_process = 10e6
-        reviews_per_request = 1
         use_all_BC = True
+        wait_for_interval = True
         
         print(f'- df_main_base - line count: {len(self.inp_out_df)}')
         absa_main_df, _ = self.run_ABSA('step_4_3', self.inp_out_df, best_model, best_nshots, 
-                      reviews_per_request=reviews_per_request, num_reviews_to_process=num_reviews_to_process, use_all_BC = use_all_BC)
+                      reviews_per_request=reviews_per_request, num_reviews_to_process=num_reviews_to_process, use_all_BC = use_all_BC, wait_for_interval = wait_for_interval)
         
         return absa_main_df
          
-    def run_ABSA(self, step_name, df_base, model, nshots, reviews_per_request = 10, num_reviews_to_process = None, use_all_BC = True):
+    def run_ABSA(self, step_name, df_base, model, nshots, reviews_per_request = 10, num_reviews_to_process = None, use_all_BC = True, wait_for_interval = True):
         """
         This function runs ABSA for a given model and number of shots on a given base.
-        
+
         Parameters:
             step_name (str): The name of the step.
             df_base (pandas.DataFrame): The DataFrame containing the base.
@@ -881,19 +895,20 @@ que degustei. Pergunto: é uma IPA ou é uma American Pale Ale lupulada em exces
             reviews_per_request (int): The number of reviews per request.
             num_reviews_to_process (int): The number of reviews to process.
             use_all_BC (bool): Whether to use all beer characteristcs of each review.
+            wait_for_interval (bool): Whether to wait for the interval in costly hours.
         Returns:
             pandas.DataFrame: The DataFrame containing the ABSA results.
         """
-        
+
         i_initial_eval_index = 0  # 0 in from begining, otherwise index of last processed element + 1
-        i_final_eval_index = min(num_reviews_to_process, len(df_base)) # or number of last element to be processed + 1
-        
+        i_final_eval_index = min(num_reviews_to_process, len(df_base)) if num_reviews_to_process is not None else len(df_base)
+
         prompt_zero = self.step_4_1_get_prompt_zero_shot()
         if nshots == 0:
             prompt_n_shot = prompt_zero
         else:
             prompt_n_shot = self.step_4_1_get_prompt_few_shots(prompt_zero, nshots, use_all_BC)
-        
+
         print(f'Running {step_name} with model {model} and {nshots} shots ...')
         review_eval_count = 1
         reviews_comments = ''
@@ -912,20 +927,22 @@ que degustei. Pergunto: é uma IPA ou é uma American Pale Ale lupulada em exces
             if i_general in df_response['index'].unique():
                 print(f'Skipping index {i_general} because already processed')
                 continue
-            
-            self.wait_for_interval("10:00", "02:00")
+
+            if wait_for_interval:
+                self.wait_for_interval("10:00", "02:00")
+
             line = df_base.iloc[i_general]
-            
+
             comm = line[['review_comment']].values[0]
             comm = self.clean_json_string(comm)
             reviews_comments += f'\n{{"{i_general}", "{comm}"}}'
-            
+
             if review_eval_count == reviews_per_request or i_general == i_final_eval_index-1:
                 prompt_ai = Prompt_AI(model, f'{prompt_n_shot} {reviews_comments} ')
-                
+
                 review_eval_count = 0
                 reviews_comments = ''
-                
+
                 response, finish_reason = prompt_ai.get_completion()
                 if finish_reason != 'stop':
                     print(f'Finish reason not expected: {finish_reason}')
@@ -970,13 +987,64 @@ que degustei. Pergunto: é uma IPA ou é uma American Pale Ale lupulada em exces
                     # fix for gpt allucionations
                     response = response.replace('```json', '')
                     response = response.replace('```', '')
-                    
-                    data_list = ast.literal_eval(response)
-                    df_new = pd.DataFrame(data_list, columns=response_columns)
+
+                    data_parsed = ast.literal_eval(response)
+
+                    # Normalize structure:
+                    # - If it's a flat list of rows: group rows by index changes (enclose brackets when index changes)
+                    # - If it's already grouped: flatten to rows for DataFrame
+                    def _is_row(x):
+                        return isinstance(x, (list, tuple)) and len(x) == 4
+
+                    def _is_group(x):
+                        return isinstance(x, (list, tuple)) and len(x) > 0 and all(_is_row(y) for y in x)
+
+                    rows_flat = []
+
+                    if isinstance(data_parsed, (list, tuple)):
+                        if len(data_parsed) == 0:
+                            rows_flat = []
+                        elif all(_is_group(x) for x in data_parsed):
+                            # Already grouped -> flatten to rows
+                            for g in data_parsed:
+                                rows_flat.extend(g)
+                        elif all(_is_row(x) for x in data_parsed):
+                            # Flat -> group by index changes
+                            grouped = []
+                            current_idx = None
+                            current_group = []
+                            for r in data_parsed:
+                                idx = r[0]
+                                if current_idx is None or idx == current_idx:
+                                    if current_idx is None:
+                                        current_idx = idx
+                                    current_group.append(r)
+                                else:
+                                    grouped.append(current_group)
+                                    current_group = [r]
+                                    current_idx = idx
+                            if current_group:
+                                grouped.append(current_group)
+                            # Keep flat rows for DataFrame writing
+                            for g in grouped:
+                                rows_flat.extend(g)
+                        else:
+                            # Mixed shapes -> recursively collect rows
+                            def _collect(el, out):
+                                if _is_row(el):
+                                    out.append(el)
+                                elif isinstance(el, (list, tuple)):
+                                    for zz in el:
+                                        _collect(zz, out)
+                            _collect(data_parsed, rows_flat)
+                    else:
+                        rows_flat = []
+
+                    df_new = pd.DataFrame(rows_flat, columns=response_columns)
                     df_response = pd.concat([df_response, df_new], ignore_index=True)
-                    # saves sometimes to do not loose work 
+                    # saves sometimes to do not loose work
                     df_new.to_csv(n_shot_file_name, mode='a', index=False, header=False)
-                
+
                 except Exception as e:
                     print(f'\n\nException:{e}')
                     print(f'\nError creating df: Check:\n {response}')
@@ -989,9 +1057,9 @@ que degustei. Pergunto: é uma IPA ou é uma American Pale Ale lupulada em exces
                 if len(df_new) < reviews_per_request and i_general != i_final_eval_index-1:
                     print(f'WARNING: Not all reviews were processed, expected {reviews_per_request}, got {len(df_new)}')
                     print(f'Last review = {i_general}')
-        
+
             review_eval_count += 1
-        
+
         print(f'TOTAL Error count: {error_count}')
         # finally, sort to check responses and save all the results
         # avoids error when index is not numeric - allucination
@@ -999,7 +1067,7 @@ que degustei. Pergunto: é uma IPA ou é uma American Pale Ale lupulada em exces
         # df_response['index'] = df_response['index'].astype(int)
         df_response = df_response.sort_values(by=['index', 'aspect'])
         df_response.to_csv(n_shot_file_name, index=False)
-        
+
         return df_response, n_shot_file_name
 
     def run(self):
