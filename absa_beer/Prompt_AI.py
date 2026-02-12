@@ -6,7 +6,7 @@ from src.maritacaai_api import get_completion as get_completion_maritacaai
 
 class Prompt_AI:
 
-    LLM_MIN_INTERVAL = 0.2
+    LLM_MIN_INTERVAL = 0.5
     MAX_TRIES = 3
     last_call_ts = 0.0
 
