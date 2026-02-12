@@ -1,3 +1,9 @@
+"""
+Super class for all steps of the pipeline. Each step should inherit from this class and implement the run() method.
+
+:author: Denis Eiras
+
+"""
 import os
 import dotenv
 import pandas as pd

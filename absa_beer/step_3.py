@@ -3,8 +3,6 @@ Step 3: Aspect-Based Sentiment Analysis of Beer Characteristics (CC)
 
 :author: Denis Eiras
 
-Functions:
-    - 
 """
 # TODO remove reviews not in portuguese
 

@@ -3,8 +3,6 @@
 
 :author: Denis Eiras
 
-Functions:
-    - 
 """
 
 import pandas as pd

@@ -3,8 +3,6 @@ Step 5: Generating Final Bases
 
 :author: Denis Eiras
 
-Functions:
-    - 
 """
 
 from step import Step

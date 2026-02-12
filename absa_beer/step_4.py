@@ -3,8 +3,6 @@ Step 4: Aspect-Based Sentiment Analysis (ABSA) of Beer Characteristics (BC)
 
 :author: Denis Eiras
 
-Functions:
-    - 
 """
 
 import pandas as pd

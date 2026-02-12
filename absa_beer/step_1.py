@@ -3,8 +3,6 @@ Step 1: Data collection from the site "brejas.com.br"
 
 :author: Denis Eiras
 
-Functions:
-    - 
 """
 
 import requests
@@ -37,6 +35,14 @@ class Step_1(Step):
 
     # Function to get beer details
     def get_beer_details(self, beer_url):
+        """Get beer details from the beer page  
+
+        Args:
+            beer_url (str): The URL of the beer page
+
+        Returns:
+            dic_beer_details (dict): A dictionary containing the beer details
+        """
         # Make a request to the beer page
         beer_response = requests.get(beer_url)
         beer_soup = BeautifulSoup(beer_response.content, "html.parser")
@@ -121,6 +127,12 @@ class Step_1(Step):
 
     # Function to get user reviews
     def get_beer_reviews(self, beer_url):
+        """Get user reviews from the beer page
+        Args:
+            beer_url (str): The URL of the beer page
+        Returns:
+            beer_reviews (list): A list of dictionaries containing the user reviews
+        """
 
         review_page = 1
         beer_reviews = []
@@ -223,6 +235,14 @@ class Step_1(Step):
         return beer_reviews
 
     def run(self):
+        """Run the step
+
+        Args:
+            None
+
+        Returns:
+            None
+        """
         print(f'\n\nRunning Step 1\n================================')
 
         pais = "brasil"
