@@ -112,6 +112,6 @@ portuguesa que citam pelo menos uma característica de cerveja. Você não faz c
         self.inp_out_df = self.inp_out_df.drop(df_reviews_not_selected['index'].astype(int).tolist())
         
         self.inp_out_df.reset_index(drop=True, inplace=True)
-        self.inp_out_df.to_csv(f'{self.work_dir}/step_3_reviews_main.csv', index=True)
+        self.inp_out_df.to_csv(f'{self.work_dir}/step_3_reviews_main.csv', index=False)
             
 
