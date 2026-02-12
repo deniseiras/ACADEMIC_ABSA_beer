@@ -665,13 +665,13 @@ que degustei. Pergunto: é uma IPA ou é uma American Pale Ale lupulada em exces
     def run_step_4_2_ABSA_model_shots_evaluation(self, df_reviews_sample):
         """
         Runs ABSA of vary models and shots on Reviews Sample.
-        Compares against ABSA_Gold.csv and computes macro Precision / Recall / F1.
+        Compares against step_4_ABSA_Gold.csv and computes macro Precision / Recall / F1.
         
         Parameters:
             df_reviews_sample (pandas.DataFrame): The DataFrame containing the base prompts.
         """
 
-        annotated_file = f"{self.work_dir}/ABSA_Gold.csv"
+        annotated_file = f"{self.work_dir}/step_4_ABSA_Gold.csv"
         df_gold = pd.read_csv(annotated_file, sep=",", encoding="utf-8")
         
         # GPT was selected for this simpler task due to best results on the test set
@@ -682,16 +682,13 @@ que degustei. Pergunto: é uma IPA ou é uma American Pale Ale lupulada em exces
         # for reviews_per_request in [1, 3, 6, ,9 ,12]:
         from itertools import product
 
-        # models = ['sabia-3', 'gpt-4o-mini']
-        # use_all_BC_opts = [True, False]
-        # nshots_opts = [0, 1, 3]
+        models = ['sabia-3', 'gpt-4o-mini']
+        use_all_BC_opts = [True, False]
+        nshots_opts = [0, 1, 3]
+        reviews_per_request_opts = [1]
         # reviews_per_request_opts = [1, 3, 6, 9, 12]
         wait_for_interval = False
         
-        models = ['sabia-3']
-        use_all_BC_opts = [True]
-        nshots_opts = [3]
-        reviews_per_request_opts = [3]
  
         for model, use_all_BC, nshots, reviews_per_request in product(models, use_all_BC_opts, nshots_opts, reviews_per_request_opts):
             print(f"Using {model} with {nshots} shots and {use_all_BC} BC, for {reviews_per_request} reviews per request")
@@ -711,7 +708,7 @@ que degustei. Pergunto: é uma IPA ou é uma American Pale Ale lupulada em exces
             #     print(f'\n\n****************************\ndf_pred - line count: {len(df_pred)} \n\n')
             # else:
             
-            df_pred, n_shot_file_name = self.run_ABSA(
+            df_pred, n_shot_file_name = self.run_ABSA_parallel(
                 'step_4_2',
                 df_reviews_sample,
                 model,
@@ -872,20 +869,29 @@ que degustei. Pergunto: é uma IPA ou é uma American Pale Ale lupulada em exces
             
         best_model = 'sabia-3'
         best_nshots = 3
-        reviews_per_request = 6
+        reviews_per_request = 9
         num_reviews_to_process = 10e6
         use_all_BC = True
         wait_for_interval = True
+        max_concurrent_batches = 500
+        submit_delay_sec = 0.1  # PromptAI with 0.1 delay
         
+        # print date and time
+        init_time = datetime.now()
+        print(f'Running Step 4.3 ABSA on Main Base at {init_time.strftime("%Y-%m-%d %H:%M:%S")}')
         print(f'- df_main_base - line count: {len(self.inp_out_df)}')
-        absa_main_df, _ = self.run_ABSA('step_4_3', self.inp_out_df, best_model, best_nshots, 
-                      reviews_per_request=reviews_per_request, num_reviews_to_process=num_reviews_to_process, use_all_BC = use_all_BC, wait_for_interval = wait_for_interval)
+        absa_main_df, _ = self.run_ABSA_parallel('step_4_3', self.inp_out_df, best_model, best_nshots, 
+                      reviews_per_request=reviews_per_request, num_reviews_to_process=num_reviews_to_process, use_all_BC = use_all_BC, wait_for_interval = wait_for_interval, max_concurrent_batches = max_concurrent_batches, submit_delay_sec = submit_delay_sec)
         
+        end_time = datetime.now()
+        print(f"\nStep 4.3 ABSA on Main Base completed at {end_time.strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"Total running time: {end_time - init_time}")
+        print(f'- absa_main_df - line count: {len(absa_main_df)}')
         return absa_main_df
-         
-    def run_ABSA(self, step_name, df_base, model, nshots, reviews_per_request = 10, num_reviews_to_process = None, use_all_BC = True, wait_for_interval = True):
+
+    def run_ABSA_parallel(self, step_name, df_base, model, nshots, reviews_per_request = 10, num_reviews_to_process = None, use_all_BC = True, wait_for_interval = True, max_concurrent_batches = 3, submit_delay_sec = 0.5):
         """
-        This function runs ABSA for a given model and number of shots on a given base.
+        Parallel version of run_ABSA that processes multiple batches concurrently.
 
         Parameters:
             step_name (str): The name of the step.
@@ -896,11 +902,16 @@ que degustei. Pergunto: é uma IPA ou é uma American Pale Ale lupulada em exces
             num_reviews_to_process (int): The number of reviews to process.
             use_all_BC (bool): Whether to use all beer characteristcs of each review.
             wait_for_interval (bool): Whether to wait for the interval in costly hours.
+            max_concurrent_batches (int): Number of batches to process in parallel.
+            submit_delay_sec (float): Small delay between starting each batch request to reduce burst load.
         Returns:
             pandas.DataFrame: The DataFrame containing the ABSA results.
         """
 
-        i_initial_eval_index = 0  # 0 in from begining, otherwise index of last processed element + 1
+        # Lazy imports to avoid changing module-level imports and keep compatibility
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        i_initial_eval_index = 52618  # 0 in from begining, otherwise index of last processed element + 1
         i_final_eval_index = min(num_reviews_to_process, len(df_base)) if num_reviews_to_process is not None else len(df_base)
 
         prompt_zero = self.step_4_1_get_prompt_zero_shot()
@@ -909,164 +920,171 @@ que degustei. Pergunto: é uma IPA ou é uma American Pale Ale lupulada em exces
         else:
             prompt_n_shot = self.step_4_1_get_prompt_few_shots(prompt_zero, nshots, use_all_BC)
 
-        print(f'Running {step_name} with model {model} and {nshots} shots ...')
-        review_eval_count = 1
-        reviews_comments = ''
+        print(f'Running {step_name} with model {model} and {nshots} shots (parallel: up to {max_concurrent_batches} batches) ...')
         response_columns = ['index', 'aspect', 'category', 'sentiment']
         df_response = pd.DataFrame(columns=response_columns)
         n_shot_file_name = f'{self.work_dir}/{step_name}__{nshots}shots_{model}_{"all_BC" if use_all_BC else f"{nshots}_BC"}_{reviews_per_request}rev_per_req_from_{i_initial_eval_index}.csv'
+
         # if n_shot_file_name exists, read it
         if os.path.exists(n_shot_file_name):
             print(f'Reading from existing {n_shot_file_name}')
             df_response = pd.read_csv(n_shot_file_name, sep=",", encoding="utf-8")
         else:
             df_response.to_csv(n_shot_file_name, index=False, header=True)
+
+        # Build list of indices to process, skipping already processed ones
+        processed_indices = set(df_response['index'].unique()) if not df_response.empty else set()
+        indices_to_process = [i for i in range(i_initial_eval_index, i_final_eval_index) if i not in processed_indices]
+
+        # Create batches of indices of size reviews_per_request
+        batches = []
+        current_batch = []
+        for idx in indices_to_process:
+            current_batch.append(idx)
+            if len(current_batch) == reviews_per_request:
+                batches.append(current_batch)
+                current_batch = []
+        if current_batch:
+            batches.append(current_batch)
+
+        if not batches:
+            print('Nothing to process. All indices already completed in this range.')
+
+        # Helper to build the reviews payload for a batch
+        def build_reviews_comments(batch_indices):
+            comments = ''
+            for i_general in batch_indices:
+                if wait_for_interval:
+                    # Respect time window per review to keep previous behavior
+                    self.wait_for_interval("10:00", "02:00")
+                line = df_base.iloc[i_general]
+                comm = line[['review_comment']].values[0]
+                comm = self.clean_json_string(comm)
+                comments += f'\n{{"{i_general}", "{comm}"}}'
+            return comments
+
+        # Parsing logic extracted into a helper for reuse/thread isolation
+        def parse_response_to_df(response_text):
+            # Remove leading/trailing whitespace/newlines
+            response_local = response_text.lstrip().rstrip()
+
+            # Normalize start and end brackets
+            response_local = re.sub(r'^\s*(?:\[\s*)+', '[[', response_local)
+            response_local = re.sub(r'(?:\s*\])+\s*$', ']]', response_local)
+
+            # Fixes for model hallucinations when processing multiple reviews
+            patterns = [
+                r'\s*[\r\n]*\]\s*[\r\n]*\[\s*[\r\n]*',                 # "] ["
+                r'\s*[\r\n]*\]\s*[\r\n]*\]\s*[\r\n]*\[\s*[\r\n]*',  # "]] ["
+                r'\s*[\r\n]*\]\s*[\r\n]*\[\s*[\r\n]*\[\s*[\r\n]*',  # "] [["
+                r'\s*[\r\n]*\]\s*[\r\n]*\]\s*[\r\n]*\[\s*[\r\n]*\[\s*[\r\n]*', # "]] [["
+                r'\s*[\r\n]*\]\s*[\r\n]*\]\s*[\r\n]*,\s*[\r\n]*\[\s*[\r\n]*\[\s*[\r\n]*', # "]], [["
+                r'\s*[\r\n]*\]\s*[\r\n]*\]\s*[\r\n]*,\s*[\r\n]*\[\s*[\r\n]*', # "]], ["
+                r'\s*[\r\n]*\]\s*[\r\n]*,\s*[\r\n]*\[\s*[\r\n]*\[\s*[\r\n]*', # "], [["
+            ]
+            for pat in patterns:
+                response_local = re.sub(pat, '],[', response_local)
+
+            # Fix for fenced code blocks
+            response_local = response_local.replace('```json', '').replace('```', '')
+
+            data_parsed = ast.literal_eval(response_local)
+
+            def _is_row(x):
+                return isinstance(x, (list, tuple)) and len(x) == 4
+
+            def _is_group(x):
+                return isinstance(x, (list, tuple)) and len(x) > 0 and all(_is_row(y) for y in x)
+
+            rows_flat = []
+
+            if isinstance(data_parsed, (list, tuple)):
+                if len(data_parsed) == 0:
+                    rows_flat = []
+                elif all(_is_group(x) for x in data_parsed):
+                    for g in data_parsed:
+                        rows_flat.extend(g)
+                elif all(_is_row(x) for x in data_parsed):
+                    grouped = []
+                    current_idx = None
+                    current_group = []
+                    for r in data_parsed:
+                        idx = r[0]
+                        if current_idx is None or idx == current_idx:
+                            if current_idx is None:
+                                current_idx = idx
+                            current_group.append(r)
+                        else:
+                            grouped.append(current_group)
+                            current_group = [r]
+                            current_idx = idx
+                    if current_group:
+                        grouped.append(current_group)
+                    for g in grouped:
+                        rows_flat.extend(g)
+                else:
+                    def _collect(el, out):
+                        if _is_row(el):
+                            out.append(el)
+                        elif isinstance(el, (list, tuple)):
+                            for zz in el:
+                                _collect(zz, out)
+                    _collect(data_parsed, rows_flat)
+            else:
+                rows_flat = []
+
+            return pd.DataFrame(rows_flat, columns=response_columns)
+
         error_count = 0
-        for i_general in range(i_initial_eval_index, i_final_eval_index):
-            # if index already processed, skip
-            if i_general in df_response['index'].unique():
-                print(f'Skipping index {i_general} because already processed')
-                continue
 
-            if wait_for_interval:
-                self.wait_for_interval("10:00", "02:00")
-
-            line = df_base.iloc[i_general]
-
-            comm = line[['review_comment']].values[0]
-            comm = self.clean_json_string(comm)
-            reviews_comments += f'\n{{"{i_general}", "{comm}"}}'
-
-            if review_eval_count == reviews_per_request or i_general == i_final_eval_index-1:
+        # Worker that runs a single batch
+        def process_batch(batch_indices):
+            try:
+                reviews_comments = build_reviews_comments(batch_indices)
                 prompt_ai = Prompt_AI(model, f'{prompt_n_shot} {reviews_comments} ')
-
-                review_eval_count = 0
-                reviews_comments = ''
-
                 response, finish_reason = prompt_ai.get_completion()
                 if finish_reason != 'stop':
                     print(f'Finish reason not expected: {finish_reason}')
-                    error_count += 1
-                    print(f'Error count: {error_count}')
-                    continue
-                try:
+                    return None, 1, batch_indices
 
-                    # Remove leading whitespace/newlines
-                    response = response.lstrip()
-                    response = response.rstrip()
+                df_new_local = parse_response_to_df(response)
+                return df_new_local, 0, batch_indices
+            except Exception as e:
+                print(f'\n\nException while processing batch {batch_indices}: {e}')
+                return None, 1, batch_indices
 
-                    # Normalize start
-                    response = re.sub(r'^\s*(?:\[\s*)+', '[[',response)
+        # Submit batches in parallel with a small delay between submissions
+        futures = []
+        with ThreadPoolExecutor(max_workers=max_concurrent_batches) as executor:
+            for batch in batches:
+                futures.append(executor.submit(process_batch, batch))
+                # small delay between requests to avoid burst
+                if submit_delay_sec and submit_delay_sec > 0:
+                    time_module.sleep(submit_delay_sec)
 
-                    # Normalize end
-                    response = re.sub(r'(?:\s*\])+\s*$', ']]', response)
-
-                    # fixes for  alucinations when processing multiple reviews
-                    #
-                    # fix for sabia-3 alucination with "][" each review
-                    pattern = r'\s*[\r\n]*\]\s*[\r\n]*\[\s*[\r\n]*'
-                    response = re.sub(pattern, '],[',response)
-                    # fix for sabia-3 alucination with "]][" each review
-                    pattern = r'\s*[\r\n]*\]\s*[\r\n]*\]\s*[\r\n]*\[\s*[\r\n]*'
-                    response = re.sub(pattern, '],[',response)
-                    # fix for sabia-3 alucination with "][[" each review
-                    pattern = r'\s*[\r\n]*\]\s*[\r\n]*\[\s*[\r\n]*\[\s*[\r\n]*'
-                    response = re.sub(pattern, '],[',response)
-                    # fix for sabia-3 alucination with "]][[" each review
-                    pattern = r'\s*[\r\n]*\]\s*[\r\n]*\]\s*[\r\n]*\[\s*[\r\n]*\[\s*[\r\n]*'
-                    response = re.sub(pattern, '],[',response)
-                    # fix for sabia-3 alucination with "]],[[" each review
-                    pattern = r'\s*[\r\n]*\]\s*[\r\n]*\]\s*[\r\n]*,\s*[\r\n]*\[\s*[\r\n]*\[\s*[\r\n]*'
-                    response = re.sub(pattern, '],[',response)
-                    # fix for sabia-3 alucination with "]],[" each review
-                    pattern = r'\s*[\r\n]*\]\s*[\r\n]*\]\s*[\r\n]*,\s*[\r\n]*\[\s*[\r\n]*'
-                    response = re.sub(pattern, '],[',response)
-                    # fix for sabia-3 alucination with "],[[" each review
-                    pattern = r'\s*[\r\n]*\]\s*[\r\n]*,\s*[\r\n]*\[\s*[\r\n]*\[\s*[\r\n]*'
-                    response = re.sub(pattern, '],[',response)
-                    # fix for gpt allucionations
-                    response = response.replace('```json', '')
-                    response = response.replace('```', '')
-
-                    data_parsed = ast.literal_eval(response)
-
-                    # Normalize structure:
-                    # - If it's a flat list of rows: group rows by index changes (enclose brackets when index changes)
-                    # - If it's already grouped: flatten to rows for DataFrame
-                    def _is_row(x):
-                        return isinstance(x, (list, tuple)) and len(x) == 4
-
-                    def _is_group(x):
-                        return isinstance(x, (list, tuple)) and len(x) > 0 and all(_is_row(y) for y in x)
-
-                    rows_flat = []
-
-                    if isinstance(data_parsed, (list, tuple)):
-                        if len(data_parsed) == 0:
-                            rows_flat = []
-                        elif all(_is_group(x) for x in data_parsed):
-                            # Already grouped -> flatten to rows
-                            for g in data_parsed:
-                                rows_flat.extend(g)
-                        elif all(_is_row(x) for x in data_parsed):
-                            # Flat -> group by index changes
-                            grouped = []
-                            current_idx = None
-                            current_group = []
-                            for r in data_parsed:
-                                idx = r[0]
-                                if current_idx is None or idx == current_idx:
-                                    if current_idx is None:
-                                        current_idx = idx
-                                    current_group.append(r)
-                                else:
-                                    grouped.append(current_group)
-                                    current_group = [r]
-                                    current_idx = idx
-                            if current_group:
-                                grouped.append(current_group)
-                            # Keep flat rows for DataFrame writing
-                            for g in grouped:
-                                rows_flat.extend(g)
-                        else:
-                            # Mixed shapes -> recursively collect rows
-                            def _collect(el, out):
-                                if _is_row(el):
-                                    out.append(el)
-                                elif isinstance(el, (list, tuple)):
-                                    for zz in el:
-                                        _collect(zz, out)
-                            _collect(data_parsed, rows_flat)
-                    else:
-                        rows_flat = []
-
-                    df_new = pd.DataFrame(rows_flat, columns=response_columns)
-                    df_response = pd.concat([df_response, df_new], ignore_index=True)
-                    # saves sometimes to do not loose work
-                    df_new.to_csv(n_shot_file_name, mode='a', index=False, header=False)
-
-                except Exception as e:
-                    print(f'\n\nException:{e}')
-                    print(f'\nError creating df: Check:\n {response}')
-                    error_count += 1
-                    print(f'Error count: {error_count}')
+            # Collect results as they complete and write sequentially to the CSV
+            for fut in as_completed(futures):
+                df_new, inc_err, batch_indices = fut.result()
+                error_count += inc_err
+                if df_new is None:
                     continue
 
-                # WARNING if it was processed all data - due to limitations of request size
-                # or some data not processed due (empty response)
-                if len(df_new) < reviews_per_request and i_general != i_final_eval_index-1:
-                    print(f'WARNING: Not all reviews were processed, expected {reviews_per_request}, got {len(df_new)}')
-                    print(f'Last review = {i_general}')
+                # Append to in-memory df and persist incrementally
+                df_response = pd.concat([df_response, df_new], ignore_index=True)
+                df_new.to_csv(n_shot_file_name, mode='a', index=False, header=False)
 
-            review_eval_count += 1
+                expected_count = len(batch_indices)
+                if len(df_new) < expected_count and len(batch_indices) == reviews_per_request:
+                    print(f'WARNING: Not all reviews were processed for batch starting at {batch_indices[0]}: expected {expected_count}, got {len(df_new)}')
 
         print(f'TOTAL Error count: {error_count}')
         # finally, sort to check responses and save all the results
         # avoids error when index is not numeric - allucination
         df_response['index'] = pd.to_numeric(df_response['index'], errors='coerce')
-        # df_response['index'] = df_response['index'].astype(int)
         df_response = df_response.sort_values(by=['index', 'aspect'])
         df_response.to_csv(n_shot_file_name, index=False)
+        
+        self.inp_out_df = df_response.copy()
 
         return df_response, n_shot_file_name
 
@@ -1099,4 +1117,4 @@ que degustei. Pergunto: é uma IPA ou é uma American Pale Ale lupulada em exces
        
         # do ABSA for real with the best combination of models and shots
         self.run_step_4_3_evaluate_main_base()
-        self.inp_out_df.to_csv(f'{self.work_dir}/step_4_absa_main.csv', index=False)
+        self.inp_out_df.to_csv(f'{self.work_dir}/step_4_ABSA_main.csv', index=False)
