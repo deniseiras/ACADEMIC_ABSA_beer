@@ -553,7 +553,7 @@ class Step_5(Step):
 
     def run(self):
         """
-        This function runs Step 5: Creating "Bases Finais" 
+        This function runs Step 5: Creating "ABSA Final" and generate the results
 
         Args:
                 self (object): The object instance that contains the data.
@@ -563,7 +563,7 @@ class Step_5(Step):
         
         print(f'\n\nRunning Step 5\n================================')
                 
-        self.read_inp_out_csv(f'{self.work_dir}/step_4_absa_main.csv')
+        self.read_inp_out_csv(f'{self.work_dir}/step_4_ABSA_main.csv')
         df_base_absa = self.inp_out_df
         categories = self.get_category_list()
         df_base_absa = df_base_absa[df_base_absa['category'].isin(categories)]
