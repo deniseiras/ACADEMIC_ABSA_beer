@@ -1,5 +1,5 @@
 """
-Step 5: Generating Final Bases
+Step 5: Generating Final Bases results
 
 :author: Denis Eiras
 
@@ -323,7 +323,7 @@ class Step_5(Step):
         
         # df = df[df['year'] >= 2014]
         # create a for year in each 2 years
-        for y in range(2, len(years), 2):
+        for y in range(1, len(years), 2):
             df_year = df[(df['year'] == years[y-1]) | (df['year'] == years[y])]
             for category in categories:
                 df_category = df_year[df_year['category'] == category]
@@ -591,20 +591,30 @@ class Step_5(Step):
         print(most_common_style_per_year)
         self.plot_most_common_beer_styles_per_year(most_common_style_per_year)
     
-        # Generate word clouds
-        max_words = 50
-        split_words = False
         
         categories = self.get_category_list()
+        df_all_cats_pos, df_all_cats_neg = self.create_base(df_absa_join, None)
+        
+        stop_words_all_cats = self.get_stop_words_all_cats()
+
+        # Generate timeline
+        df_neg = self.get_most_common_word_by_year(df_all_cats_neg, stop_words_all_cats, 'negativo')
+        df_pos = self.get_most_common_word_by_year(df_all_cats_pos, stop_words_all_cats, 'positivo')
+        self.plot_mirrored_timeline(df_neg, df_pos)       
+
+
+        # Word Cloud generation -not in results
+        #
+        max_words = 50
+        split_words = False
         df_aroma_pos, df_aroma_neg = self.create_base(df_absa_join, 'aroma')
         df_visual_pos, df_visual_neg = self.create_base(df_absa_join, 'visual')
         df_flavor_pos, df_flavor_neg = self.create_base(df_absa_join, 'sabor')
         df_sensation_pos, df_sensation_neg = self.create_base(df_absa_join, 'sensação na boca')
         df_bitterness_pos, df_bitterness_neg = self.create_base(df_absa_join, 'amargor')
         df_alcool_pos, df_alcool_neg = self.create_base(df_absa_join, 'álcool')
-        df_all_cats_pos, df_all_cats_neg = self.create_base(df_absa_join, None)
-        
         stop_words_sab_aro_sens_vis = self.get_stop_words_sab_aro_sens_vis()
+        stop_words_amar_alco = self.get_stop_words_alco_amarg()
         self.generate_word_cloud(df_aroma_pos, 'aroma_pos', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
         self.generate_word_cloud(df_aroma_neg, 'aroma_neg', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
         self.generate_word_cloud(df_visual_pos, 'visual_pos', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
@@ -614,19 +624,12 @@ class Step_5(Step):
         self.generate_word_cloud(df_sensation_pos, 'sensation_pos', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
         self.generate_word_cloud(df_sensation_neg, 'sensation_neg', stop_words_sab_aro_sens_vis, categories, max_words=max_words, split_words=split_words)
         
-        stop_words_amar_alco = self.get_stop_words_alco_amarg()
         self.generate_word_cloud(df_bitterness_pos, 'bitterness_pos', stop_words_amar_alco, categories, max_words=max_words, split_words=split_words)
         self.generate_word_cloud(df_bitterness_neg, 'bitterness_neg', stop_words_amar_alco, categories, max_words=max_words, split_words=split_words)
         self.generate_word_cloud(df_alcool_pos, 'alcool_pos', stop_words_amar_alco, categories, max_words=max_words, split_words=split_words)
         self.generate_word_cloud(df_alcool_neg, 'alcool_neg', stop_words_amar_alco, categories, max_words=max_words, split_words=split_words)
         
-        stop_words_all_cats = self.get_stop_words_all_cats()
         self.generate_word_cloud(df_all_cats_pos, 'all_cats_pos', stop_words_all_cats, categories, max_words=max_words, split_words=split_words)
         self.generate_word_cloud(df_all_cats_neg, 'all_cats_neg', stop_words_all_cats, categories, max_words=max_words, split_words=split_words)
-
-        # Generate timeline
-        df_neg = self.get_most_common_word_by_year(df_all_cats_neg, stop_words_all_cats, 'negativo')
-        df_pos = self.get_most_common_word_by_year(df_all_cats_pos, stop_words_all_cats, 'positivo')
-        self.plot_mirrored_timeline(df_neg, df_pos)       
 
     
