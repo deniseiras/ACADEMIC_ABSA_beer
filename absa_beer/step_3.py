@@ -1,5 +1,6 @@
 """
-Step 3: Aspect-Based Sentiment Analysis of Beer Characteristics (CC)
+Step 3: Aspect-Based Sentiment Analysis of Beer Characteristics (CC): Selection of reviews for the main base,
+creating the 'Prompt Main Base' and 'Main Base' (step_3_reviews_main.csv). 
 
 :author: Denis Eiras
 
@@ -17,11 +18,8 @@ class Step_3(Step):
         super().__init__()
    
     def run(self):
-        """Create 'Prompt Main Base' and 'Main Base' (step_3_reviews_main.csv)
-
-        To create the 'Main Base', used for the AS and ABSA executed in ASBA (Step 4) and AS (Step 5), it was selected
-        the best reviews using a prompt to achieve this.
-
+        """Run the Step 3: Aspect-Based Sentiment Analysis of Beer Characteristics (CC): Selection of reviews for the main base,
+        creating the 'Prompt Main Base' and 'Main Base' (step_3_reviews_main.csv).
         Args:
             None
 

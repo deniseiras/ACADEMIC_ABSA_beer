@@ -1,5 +1,7 @@
 """
-Step 4: Aspect-Based Sentiment Analysis (ABSA) of Beer Characteristics (BC)
+Step 4: Aspect-Based Sentiment Analysis (ABSA) of Beer Characteristics (BC): Create the Prompts ABSA zero-shot, one-shot and few-shots.
+Create the Reviews Sample, do ABSA in Base Reviews Sample for n shots and models, to select the best combination against a manual annotated dataset (ABSA Gold).
+The best combination of prompt is used to run the ABSA in Reviews Main, to create the ABSA Main dataset.
 
 :author: Denis Eiras
 
@@ -78,7 +80,6 @@ Não faça comentários, apenas gere a saída dos campos extraídos no formato a
         The reviews were selected manually from base step_4_1__base_for_prompts_selection.csv, considering good and bad reviews 
         for 4 main styles of beer, by experienced reviweres, and 2 reviews from newbies
         Parameters:
-            self (object): The object instance that contains the data.
             prompt_zero_shot (str): The prompt ABSA zero-shot.
             num_shots (int): The number of shots to generate.
             use_all_BC (bool): Whether to use all beer characteristcs of each review.
@@ -1088,10 +1089,9 @@ que degustei. Pergunto: é uma IPA ou é uma American Pale Ale lupulada em exces
 
     def run(self):
         """
-        This function runs Step 4 of the Aspect-Based Sentiment Analysis of Beer Characteristics.
-        It reads the step_3_reviews_main.csv (Main Base) containing the reviews for the previous step, creates the prompts and then
-        test models and nshots by testing different prompts. Finally, runs the best prompt in the entire Base (Main Base)
-
+        Run the Step 4: Aspect-Based Sentiment Analysis (ABSA) of Beer Characteristics (BC): Create the Prompts ABSA zero-shot, one-shot and few-shots.
+        Create the Reviews Sample, do ABSA in Base Reviews Sample for n shots and models, to select the best combination against a manual annotated dataset (ABSA Gold).
+        The best combination of prompt is used to run the ABSA in Reviews Main, to create the ABSA Main dataset.
         Args:
                 self (object): The object instance that contains the data.
 

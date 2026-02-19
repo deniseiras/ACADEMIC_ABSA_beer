@@ -1,5 +1,7 @@
 """
-- Step 2: Data preprocessing
+- Step 2: Data preprocessing: Remove duplicates, remove records without comments, convert types,
+transform avaliation values to [1-5] points, remove records outside range values (ABV, SRM, IBU), 
+create the col review_comment_size and general information about the data set.
 
 :author: Denis Eiras
 
@@ -61,8 +63,10 @@ class Step_2(Step):
         self.sanitize_column("beer_ibu", 0, 120)
 
     def run(self):
-        """Convert types and transform evaluation values to [1-5] points. Remove invalid data
-        based on range of values. Filter the non sense comments using OpenAI
+        """Run the Step 2: Data preprocessing: Remove duplicates, remove records without comments, convert types,
+        transform avaliation values to [1-5] points, remove records outside range values (ABV, SRM, IBU), 
+        create the col review_comment_size and general information about the data set.
+
         Args:
             df (pandas.DataFrame):
 
@@ -142,8 +146,6 @@ class Step_2(Step):
         dupl = dupl[dupl.duplicated(subset=dupl_sub_set, keep='first')]
         print(f'Comment duplicates: {len(dupl)}')
         dupl.to_csv(f'{self.work_dir}/step_2__DUPLICATES__review_comment.csv', index=False)
-        # self.inp_out_df.drop(dupl.index, inplace=True)
-        # print(f"Still {len(self.inp_out_df)} lines")
 
         # Removing comments with less than 4 characters
         # most of the comments are garbage and some are equas "Boa"
@@ -221,5 +223,4 @@ class Step_2(Step):
         print(dfh.describe(percentiles))
         
         print(f"Step 2 final count: {len(self.inp_out_df)} lines")                
-        # generate the base
         self.inp_out_df.to_csv(f'{self.work_dir}/step_2.csv', index=False)

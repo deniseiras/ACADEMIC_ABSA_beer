@@ -235,7 +235,7 @@ class Step_1(Step):
         return beer_reviews
 
     def run(self):
-        """Run the step
+        """Run the Step 1: Data collection from the site "brejas.com.br"
 
         Args:
             None

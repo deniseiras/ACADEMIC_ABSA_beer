@@ -1,5 +1,5 @@
 """
-Step 5: Generating Final Bases results
+Step 5: Generating Final Bases results: Groups ABSA data catagory and sentiment from the ABSA Main dataset, and generate the results.
 
 :author: Denis Eiras
 
@@ -551,7 +551,7 @@ class Step_5(Step):
 
     def run(self):
         """
-        This function runs Step 5: Creating "ABSA Final" and generate the results
+        Run the Step 5: Generating Final Bases results: Groups ABSA data catagory and sentiment from the ABSA Main dataset, and generate the results.
 
         Args:
                 self (object): The object instance that contains the data.
