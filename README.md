@@ -5,20 +5,20 @@ This repository contains the methodology tasks of the paper above.
 
 ## ABSTRACT 
 
-Aspect-Based Sentiment Analysis (ABSA) enables the identification of user preferences toward specific entities in text. One of the motivations for this study is the lack of research applying ABSA with Large Language Models (LLMs) to unlabeled datasets, particularly in Portuguese. This work applies ABSA and general Sentiment Analysis (SA) to Portuguese-language beer reviews from one Brazilian website, focusing on Beer Characteristics (BC) such as aroma, flavor, and visual attributes. Due to the unlabeled nature of the dataset, an unsupervised LLM approach was adopted, testing Sabiá-3 and GPT-4 mini with zero-shot, one-shot, and few-shot prompting. A representative 22-review subset was used to evaluate configurations, with the optimal setup (Sabiá-3, one review example, all BC examples) achieving 69.09% precision, 63.33% recall, and an F1-score of 66.08%. This configuration was applied to the full dataset with 467,431 BC records. Results revealed caramel, fruity, refreshing, and high drinkability as the most positively associated BC, while watery and low drinkability were the most negative. Temporal analysis identified growth in IPA and Russian Imperial Stout styles. Findings confirm that LLM-based ABSA in Portuguese can capture nuanced consumer preferences, offering actionable insights for the Brazilian craft beer market despite dataset and reproducibility limitations.
+This study investigates the application of Large Language Models (LLMs) to unsupervised Aspect-Based Sentiment Analysis (ABSA) in Portuguese, focusing on consumer reviews of Brazilian beers. We construct a novel domain-specific dataset comprising nearly 60,000 filtered reviews collected from a major Brazilian beer forum, along with a manually annotated gold-standard subset containing 1,712 labeled Beer Characteristics (BC), categories, and sentiment polarities. Two LLM families—one monolingual (Sabiá-3) and one multilingual (GPT-4o mini)—are systematically evaluated under zero-shot, one-shot, and few-shot prompting strategies. Results show that the best configuration achieves F1-scores of 0.857 for aspect extraction, 0.826 for category identification, and 0.552 for sentiment classification, with sentiment detection proving the most sensitive to prompt design. Using the optimal model and prompt configuration, a large-scale annotated dataset of over 880,000 extracted BC instances is generated, enabling longitudinal analysis of consumer perceptions from 2008 to 2025. Findings indicate that positive attributes such as refreshing mouthfeel and persistent foam dominate consumer praise. The proposed pipeline demonstrates that LLM-based ABSA can effectively uncover fine-grained consumer preferences in low-resource languages without extensive labeled data, offering a scalable and cost-effective tool for market intelligence and product development in the brewing industry.
 
 
 ## Methodology 
 
-ASBA techniques were used in beer evaluation texts to identify the feeling of each CC. AS techniques were applied to identify the overall sentiment of the review. The following figure presents the overall workflow: 
-- Step 1 and Step 2 performs the tasks of data collection, analysis and pre-processing. 
-- Step 3 creates the Main Base by selection of valid assessments. 
-- Step 4 identifies and performs the BC identification, classification and sentiment analysis of each BC review (ASBA tasks).
-- Step 5 performes the general SA of the reviews in the Main Base. 
-- Step 6 generates the Final bases through joining of the Main Base and the bases resulting from ABSA and SA.
-- Step 7 generates results using these bases.
+ABSA techniques powered by LLMs were applied to identify consumer preferences regarding BC, conducted on the textual content of user reviews. The following sections detail the materials and procedures employed in the study, as illustrated in Fig. 1. 
 
 ![Fig1  Fluxograma](./docs/eiras1.png)
+FIGURE 1.Procedure Fluxogram. Large arrows mean “generates”; small arrows mean “uses".
+
+Steps 1 and 2 encompassed the processes of data collection, pre-processing, and preliminary analysis. In Step 3, a primary dataset—“Reviews Main”—was constructed by identifying and selecting valid reviews through LLM-based filtering technique. In Step 4, two distinct LLMs were evaluated for the ABSA tasks on a sample subset of the “Reviews Main” base (“Reviews Sample”). Based on comparative performance, the most effective model was selected for application to the full dataset (“Reviews Main”), generating an aspect-annotated version referred to as the “ABSA Main”. 
+Step 5 generated the “ABSA Final” bases from the “ABSA Main” and “Reviews Main”, by grouping reviews by category and sentiment polarity (positive or negative) and by the year of the review in order to show the identification of the most influential BC and their categories in shaping overall product assessments and temporal analyses to track sentiment evolution over time.
+
+
 
 
 ## General instructions
@@ -92,13 +92,13 @@ MARITACAAI_API_KEY=123........................
 
 ## Downloading the dataset 
 
-Download your data set at the same directory defined in the WORK_DIR parameter in .env file.
+Download the dataset step_3_reviews_main.csv at the same directory defined in the WORK_DIR parameter in .env file.
 
-**TODO PUT THE DATASET IN THE HUGGING FACE**
+[ABSA_beer](https://huggingface.co/datasets/deniseiras/ABSA_beer)     
 
 ~~~bash
 cd ~/ABSA_beer__workdir
-wget XXX 
+wget https://huggingface.co/datasets/deniseiras/ABSA_beer/blob/main/step_3_reviews_main.csv
 ~~~
 
 ## Running
@@ -106,14 +106,11 @@ wget XXX
 The main program is based at absa_beer/absa_beer.py , which calls from Step1 to Step 7.
 The Step 1 collects data from the site brejas.com.br, Step 2 does the pre-processing and the Step 3 generates the Main Base.
 
-However, the base could be obtained by downloading it from :
-
-**TODO DOWNLOAD BASE SITE**
+However, the base could be obtained by downloading it as shown in the "Downloading the dataset" section.
 
 Each Step [number] has its own processing function called "run", which generates a dataset called "step_[number].csv". Each step uses the bases of the previous step.
 
-All the datasets was previous available as shown in the "Downloading the datasets" section, so 
-you may not need to run all the steps. I. e. the Steps from Step 1 to Step 3 are the most time demanding, and you shouldn't change this methods, otherwise you will have a differente dataset, because the site brejas.com.br might be updated with new reviews. 
+All the datasets was previous available as shown in the "Downloading the datasets" section, so you may not need to run all the steps. I. e. the Steps from Step 1 to Step 3 are the most time demanding, and you shouldn't change this methods, otherwise you will have a differente dataset, because the site brejas.com.br might be updated with new reviews. 
 
 If you want to run from the Step 4 (ABSA), you need to comment the calling of the Steps 1 to 3 in absa_beer.py file
 
@@ -130,7 +127,5 @@ If you need further assistance, please do no hesitate to contact me.
 ## Results
 
 Each step generates the file step_[number].csv, containing the dataset resulting from each step.
-
-The Steps 6 and 7 generates output texts and figures that demonstrate the final results.
 
 
